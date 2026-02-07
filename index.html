@@ -36,7 +36,6 @@
             height: 100%;
         }
 
-        /* Layout */
         header {
             padding: 12px 16px;
             border-bottom: 1px solid #2b3b6e;
@@ -72,7 +71,6 @@
             min-height: calc(100vh - 60px);
         }
 
-        /* UI Elements */
         button {
             background: var(--accent);
             color: #062410;
@@ -122,7 +120,6 @@
             text-align: center;
         }
 
-        /* Spectator Warning Banner */
         .spectator-banner {
             display: none;
             background: #ff9800;
@@ -149,7 +146,6 @@
             }
         }
 
-        /* Game Board Area */
         .game-area {
             display: flex;
             flex-direction: column;
@@ -174,7 +170,6 @@
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
         }
 
-        /* Slots */
         .slot {
             position: absolute;
             width: 34%;
@@ -211,7 +206,6 @@
             background: rgba(107, 211, 144, 0.1);
         }
 
-        /* Tiles */
         .tile {
             width: 90%;
             height: 90%;
@@ -224,7 +218,6 @@
             touch-action: none;
             z-index: 10;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-            transition: transform 0.2s, top 0.2s, left 0.2s;
         }
 
         .tile.locked {
@@ -313,7 +306,6 @@
             writing-mode: vertical-rl;
         }
 
-        /* Clue Inputs */
         .clue-box {
             position: absolute;
             z-index: 20;
@@ -371,7 +363,6 @@
             width: 160px;
         }
 
-        /* Dock */
         .dock {
             margin-top: 40px;
             display: flex;
@@ -392,7 +383,6 @@
             position: relative;
         }
 
-        /* Modals & Screens */
         .modal {
             position: fixed;
             inset: 0;
@@ -451,10 +441,6 @@
             justify-content: space-between;
         }
 
-        .player-row:last-child {
-            border: none;
-        }
-
         .badge {
             font-size: 0.75rem;
             padding: 2px 6px;
@@ -467,7 +453,6 @@
             color: #000;
         }
 
-        /* Waiting Screen */
         #waitingScreen {
             position: absolute;
             inset: 0;
@@ -494,10 +479,6 @@
                 flex: 1;
                 max-width: 300px;
             }
-
-            .dock {
-                flex-direction: row;
-            }
         }
     </style>
 </head>
@@ -513,16 +494,13 @@
                 <button class="secondary" onclick="setupJoin()">Join Lobby</button>
             </div>
         </div>
-
         <div class="modal-content" id="hostView" style="display:none;">
             <h2>Lobby Created</h2>
-            <p style="color:var(--muted)">Share this code:</p>
-            <div style="font-size: 2rem; color: var(--accent); font-family: monospace; margin: 10px 0; user-select: text;"
+            <div style="font-size: 2rem; color: var(--accent); font-family: monospace; margin: 10px 0;"
                 id="roomCodeDisplay">...</div>
             <div class="player-list" id="hostPlayerList"></div>
-            <button id="startBtn" onclick="hostStartGame()" disabled>Start Game (Waiting for players...)</button>
+            <button id="startBtn" onclick="hostStartGame()" disabled>Waiting for players...</button>
         </div>
-
         <div class="modal-content" id="joinView" style="display:none;">
             <h2>Join Lobby</h2>
             <div class="input-group">
@@ -547,130 +525,44 @@
                 <span id="phaseDisplay">Waiting...</span>
                 <span id="scoreDisplay">Score: 0</span>
             </div>
-
-            <div id="spectatorBanner" class="spectator-banner">
-                👀 YOU ARE THE SPECTATOR. SILENCE PLEASE!
-            </div>
-
+            <div id="spectatorBanner" class="spectator-banner">👀 YOU ARE THE SPECTATOR. SILENCE PLEASE!</div>
             <div class="instruction" id="instruction"></div>
-
             <div class="board-wrapper">
                 <div id="waitingScreen">
                     <div>
                         <h2 id="waitTitle">Please Wait</h2>
-                        <p id="waitMsg">Other players are working...</p>
+                        <p id="waitMsg"></p>
                     </div>
                 </div>
-
                 <div class="board" id="board">
                     <div class="slot tl" data-slot="tl"></div>
                     <div class="slot tr" data-slot="tr"></div>
                     <div class="slot bl" data-slot="bl"></div>
                     <div class="slot br" data-slot="br"></div>
-
                     <div class="clue-box top"><input type="text" placeholder="Top Clue" id="clue-top"></div>
                     <div class="clue-box right"><input type="text" placeholder="Right Clue" id="clue-right"></div>
                     <div class="clue-box bottom"><input type="text" placeholder="Bottom Clue" id="clue-bottom"></div>
                     <div class="clue-box left"><input type="text" placeholder="Left Clue" id="clue-left"></div>
                 </div>
             </div>
-
-            <div class="dock" id="dock">
-            </div>
+            <div class="dock" id="dock"></div>
         </div>
     </main>
 
     <script>
-        /**
-         * WORD BANK
-         */
-        const WORDS = [
-            "Apple", "Train", "Robot", "Forest", "Ocean", "Desert", "Space", "Magic", "Music", "Paint",
-            "School", "Winter", "Summer", "Pizza", "Coffee", "Ghost", "Alien", "Castle", "Dragon", "Sword",
-            "Book", "Phone", "Camera", "Light", "Shadow", "River", "Mountain", "Cloud", "Rain", "Fire",
-            "Ice", "Gold", "Silver", "Love", "Time", "Dream", "Night", "Day", "Star", "Moon",
-            "Sun", "Tree", "Flower", "Bird", "Fish", "Cat", "Dog", "Horse", "Lion", "Tiger",
-            "Bear", "Wolf", "Fox", "Road", "Bridge", "City", "House", "Room", "Door", "Key",
-            "Lock", "Map", "Ship", "Plane", "Car", "Bike", "Shoe", "Hat", "Coat", "Glass",
-            "Plate", "Spoon", "Fork", "Knife", "Bread", "Cheese", "Milk", "Egg", "Cake", "Pie",
-            "Honey", "Bee", "Ant", "Spider", "Web", "Net", "Ball", "Bat", "Glove", "Ring",
-            "King", "Queen", "Prince", "Baby", "Man", "Woman", "Boy", "Girl", "Doctor", "Nurse",
-            "Chef", "Cop", "Thief", "Jail", "Law", "Money", "Bank", "Card", "Dice", "Game"
-        ];
+        const WORDS = ["Apple", "Train", "Robot", "Forest", "Ocean", "Desert", "Space", "Magic", "Music", "Paint", "School", "Winter", "Summer", "Pizza", "Coffee", "Ghost", "Alien", "Castle", "Dragon", "Sword", "Book", "Phone", "Camera", "Light", "Shadow", "River", "Mountain", "Cloud", "Rain", "Fire", "Ice", "Gold", "Silver", "Love", "Time", "Dream", "Night", "Day", "Star", "Moon", "Sun", "Tree", "Flower", "Bird", "Fish", "Cat", "Dog", "Horse", "Lion", "Tiger", "Bear", "Wolf", "Fox", "Road", "Bridge", "City", "House", "Room", "Door", "Key", "Lock", "Map", "Ship", "Plane", "Car", "Bike", "Shoe", "Hat", "Coat", "Glass", "Plate", "Spoon", "Fork", "Knife", "Bread", "Cheese", "Milk", "Egg", "Cake", "Pie", "Honey", "Bee", "Ant", "Spider", "Web", "Net", "Ball", "Bat", "Glove", "Ring", "King", "Queen", "Prince", "Baby", "Man", "Woman", "Boy", "Girl", "Doctor", "Nurse", "Chef", "Cop", "Thief", "Jail", "Law", "Money", "Bank", "Card", "Dice", "Game"];
+        const STATE = { LOBBY: 'LOBBY', PREP: 'PREP', SOLVING: 'SOLVING', END: 'END' };
 
-        /**
-         * GAME STATE
-         */
-        const STATE = {
-            LOBBY: 'LOBBY',
-            PREP: 'PREP',
-            WAITING: 'WAITING',
-            SOLVING: 'SOLVING',
-            SCORING: 'SCORING',
-            END: 'END'
-        };
+        let myPeerId, peer, conn, isHost = false, myName = "Player", players = [], currentPhase = STATE.LOBBY, myBoard, hostLobbyState = {}, activeSpectatorId, activeSolution, attemptCount = 1, totalScore = 0, connections = {};
 
-        let myPeerId = null;
-        let peer = null;
-        let conn = null; // Client -> Host
-        let connections = {}; // Host -> Clients
-        let isHost = false;
-        let myName = "Player";
-        let players = [];
+        const els = { lobbyModal: document.getElementById('lobbyModal'), startView: document.getElementById('startView'), hostView: document.getElementById('hostView'), joinView: document.getElementById('joinView'), roomCode: document.getElementById('roomCodeDisplay'), hostList: document.getElementById('hostPlayerList'), startBtn: document.getElementById('startBtn'), board: document.getElementById('board'), dock: document.getElementById('dock'), actionBtn: document.getElementById('actionBtn'), instruction: document.getElementById('instruction'), waitingScreen: document.getElementById('waitingScreen'), waitTitle: document.getElementById('waitTitle'), waitMsg: document.getElementById('waitMsg'), phaseDisplay: document.getElementById('phaseDisplay'), scoreDisplay: document.getElementById('scoreDisplay'), spectatorBanner: document.getElementById('spectatorBanner') };
 
-        // Game Data
-        let currentPhase = STATE.LOBBY;
-        let myBoard = null;
-        let hostLobbyState = {};
-        let activeSpectatorId = null;
-        let activeSolution = null;
-        let attemptCount = 1;
-        let totalScore = 0;
+        function shuffle(arr) { return arr.sort(() => Math.random() - 0.5); }
+        function getRandomWords(count) { return shuffle([...WORDS]).slice(0, count); }
+        function generateTile(id) { return { id: id, words: getRandomWords(4) }; }
 
-        // DOM Elements
-        const els = {
-            lobbyModal: document.getElementById('lobbyModal'),
-            startView: document.getElementById('startView'),
-            hostView: document.getElementById('hostView'),
-            joinView: document.getElementById('joinView'),
-            roomCode: document.getElementById('roomCodeDisplay'),
-            hostList: document.getElementById('hostPlayerList'),
-            startBtn: document.getElementById('startBtn'),
-            board: document.getElementById('board'),
-            dock: document.getElementById('dock'),
-            actionBtn: document.getElementById('actionBtn'),
-            instruction: document.getElementById('instruction'),
-            waitingScreen: document.getElementById('waitingScreen'),
-            waitTitle: document.getElementById('waitTitle'),
-            waitMsg: document.getElementById('waitMsg'),
-            phaseDisplay: document.getElementById('phaseDisplay'),
-            scoreDisplay: document.getElementById('scoreDisplay'),
-            spectatorBanner: document.getElementById('spectatorBanner')
-        };
-
-        /**
-         * UTILS
-         */
-        function shuffle(arr) {
-            return arr.sort(() => Math.random() - 0.5);
-        }
-
-        function getRandomWords(count) {
-            return shuffle([...WORDS]).slice(0, count);
-        }
-
-        function generateTile(id) {
-            return { id: id, words: getRandomWords(4) }; // Top, Right, Bottom, Left
-        }
-
-        /**
-         * TILE & BOARD RENDERER
-         */
         function getRotatedWords(words, rotation) {
-            // rotation 0: [0,1,2,3]
-            // rotation 1: [3,0,1,2]
             const w = [...words];
-            if (rotation === 0) return w;
             if (rotation === 1) return [w[3], w[0], w[1], w[2]];
             if (rotation === 2) return [w[2], w[3], w[0], w[1]];
             if (rotation === 3) return [w[1], w[2], w[3], w[0]];
@@ -678,7 +570,6 @@
         }
 
         function updateTileVisuals(el, rotation, originalWords) {
-            if (!originalWords) return;
             const words = getRotatedWords(originalWords, rotation);
             el.querySelector('.top').textContent = words[0];
             el.querySelector('.right').textContent = words[1];
@@ -692,562 +583,194 @@
             el.className = `tile ${isLocked ? 'locked' : ''}`;
             el.dataset.id = tile.id;
             el.dataset.rot = rotation;
-            // CRITICAL FIX: Store original words for rotation logic
             el.dataset.originalWords = JSON.stringify(tile.words);
-
             if (isDraggable && !isLocked) el.draggable = true;
-
-            el.innerHTML = `
-        <div class="edge top"></div>
-        <div class="edge right"></div>
-        <div class="edge bottom"></div>
-        <div class="edge left"></div>
-        <div class="center-mark"></div>
-    `;
-
+            el.innerHTML = `<div class="edge top"></div><div class="edge right"></div><div class="edge bottom"></div><div class="edge left"></div><div class="center-mark"></div>`;
             updateTileVisuals(el, rotation, tile.words);
 
-            // Rotation Logic (Click)
-            el.addEventListener('click', (e) => {
-                // Validation: Locked? Prep? Spectating?
-                if (isLocked || currentPhase === STATE.PREP) return;
-                if (myPeerId === activeSpectatorId) return; // Spectator cannot rotate
-
-                // Only allow rotation in Dock or Board during solving
-                if (currentPhase === STATE.SOLVING && isDraggable) {
-                    let r = parseInt(el.dataset.rot);
-                    r = (r + 1) % 4;
-
-                    // Find parent to define slot
-                    const parent = el.parentElement;
-                    let targetSlot = 'dock';
-                    if (parent.classList.contains('slot')) {
-                        if (parent.classList.contains('tl')) targetSlot = 'tl';
-                        if (parent.classList.contains('tr')) targetSlot = 'tr';
-                        if (parent.classList.contains('bl')) targetSlot = 'bl';
-                        if (parent.classList.contains('br')) targetSlot = 'br';
-                    }
-
-                    // Send Move Immediately
-                    const moveData = {
-                        type: 'TILE_MOVE',
-                        tileId: tile.id,
-                        targetSlot: targetSlot,
-                        rotation: r
-                    };
-
-                    if (isHost) {
-                        handleTileMove(moveData); // Update local
-                        broadcast(moveData); // Send to all
-                    } else {
-                        conn.send(moveData); // Send to host
-                    }
-                }
+            el.addEventListener('click', () => {
+                if (isLocked || currentPhase === STATE.PREP || myPeerId === activeSpectatorId || !isDraggable) return;
+                let r = (parseInt(el.dataset.rot) + 1) % 4;
+                const parent = el.parentElement;
+                let target = 'dock';
+                if (parent.classList.contains('slot')) target = parent.dataset.slot || [...parent.classList].find(c => ['tl', 'tr', 'bl', 'br'].includes(c));
+                const moveData = { type: 'TILE_MOVE', tileId: tile.id, targetSlot: target, rotation: r };
+                if (isHost) { handleTileMove(moveData); broadcast(moveData); } else conn.send(moveData);
             });
 
-            // Drag Logic
             if (isDraggable && !isLocked) {
                 el.addEventListener('dragstart', (e) => {
-                    if (myPeerId === activeSpectatorId) {
-                        e.preventDefault();
-                        return false;
-                    }
+                    if (myPeerId === activeSpectatorId) return e.preventDefault();
                     el.classList.add('dragging');
                     e.dataTransfer.setData('text/plain', JSON.stringify({ id: tile.id }));
                 });
                 el.addEventListener('dragend', () => el.classList.remove('dragging'));
             }
-
             return el;
         }
 
         function renderBoard(layout, isInteractive) {
-            // layout: { clues: {top, right...}, slots: {tl: {tile, rot}, ...}, dock: [tiles] }
-
-            // 1. Clues
             ['top', 'right', 'bottom', 'left'].forEach(dir => {
                 const input = document.getElementById(`clue-${dir}`);
                 const parent = input.parentElement;
-
-                // Remove old display if exists
-                const oldDisp = parent.querySelector('.clue-display');
-                if (oldDisp) oldDisp.remove();
-
+                parent.querySelectorAll('.clue-display').forEach(d => d.remove());
                 if (currentPhase === STATE.PREP) {
-                    input.style.display = 'block';
-                    input.value = layout.clues?.[dir] || '';
-                    input.disabled = false;
+                    input.style.display = 'block'; input.value = layout.clues?.[dir] || ''; input.disabled = false;
                 } else {
                     input.style.display = 'none';
-                    const d = document.createElement('div');
-                    d.className = 'clue-display';
-                    d.textContent = layout.clues?.[dir] || '???';
-                    parent.appendChild(d);
+                    const d = document.createElement('div'); d.className = 'clue-display';
+                    d.textContent = layout.clues?.[dir] || '???'; parent.appendChild(d);
                 }
             });
-
-            // 2. Clear Slots & Dock
             document.querySelectorAll('.slot').forEach(s => s.innerHTML = '');
             els.dock.innerHTML = '';
-
-            // 3. Place Tiles
-            if (layout.slots) {
-                Object.entries(layout.slots).forEach(([key, data]) => {
-                    if (data) {
-                        const slot = document.querySelector(`.slot.${key}`);
-                        const t = createTileEl(data.tile, data.rot, isInteractive, data.locked);
-                        slot.appendChild(t);
-                    }
-                });
-            }
-
-            if (layout.dock) {
-                layout.dock.forEach(tile => {
-                    const t = createTileEl(tile, 0, isInteractive); // Dock always rot 0 initially
-                    els.dock.appendChild(t);
-                });
-            }
+            if (layout.slots) Object.entries(layout.slots).forEach(([k, v]) => { if (v) document.querySelector(`.slot.${k}`).appendChild(createTileEl(v.tile, v.rot, isInteractive, v.locked)); });
+            if (layout.dock) layout.dock.forEach(t => els.dock.appendChild(createTileEl(t, 0, isInteractive)));
         }
 
-        /**
-         * GAME LOGIC
-         */
-
-        // --- PHASE 1: PREP (Individual) ---
         function startPrepPhase() {
-            currentPhase = STATE.PREP;
-            els.lobbyModal.style.display = 'none';
+            currentPhase = STATE.PREP; els.lobbyModal.style.display = 'none';
             els.instruction.textContent = "Arrange your cards randomly, then write 4 clues.";
-            els.actionBtn.textContent = "Done - Submit Clues";
-            els.actionBtn.style.display = "block";
-            els.actionBtn.disabled = true;
-            els.waitingScreen.style.display = 'none';
-            els.spectatorBanner.style.display = 'none';
-
-            // Generate my local board
-            const t1 = generateTile('t1');
-            const t2 = generateTile('t2');
-            const t3 = generateTile('t3');
-            const t4 = generateTile('t4');
-
-            const slots = ['tl', 'tr', 'bl', 'br'];
-            const tiles = [t1, t2, t3, t4];
+            els.actionBtn.textContent = "Done - Submit Clues"; els.actionBtn.style.display = "block"; els.actionBtn.disabled = true;
+            els.waitingScreen.style.display = 'none'; els.spectatorBanner.style.display = 'none';
+            const tiles = [generateTile('t1'), generateTile('t2'), generateTile('t3'), generateTile('t4')];
             shuffle(tiles);
-
-            myBoard = {
-                solution: {},
-                clues: { top: '', right: '', bottom: '', left: '' }
-            };
-
-            // Place them visually in slots immediately (fixed for Prep)
-            slots.forEach((s, i) => {
+            myBoard = { solution: {}, clues: { top: '', right: '', bottom: '', left: '' } };
+            ['tl', 'tr', 'bl', 'br'].forEach((s, i) => {
                 const rot = Math.floor(Math.random() * 4);
                 myBoard.solution[s] = { tile: tiles[i], rot: rot };
-
-                const slotEl = document.querySelector(`.slot.${s}`);
-                slotEl.innerHTML = '';
-                slotEl.appendChild(createTileEl(tiles[i], rot, false, true)); // Not draggable in prep
+                document.querySelector(`.slot.${s}`).appendChild(createTileEl(tiles[i], rot, false, true));
             });
-
-            // Listen for inputs
-            const inputs = document.querySelectorAll('.clue-box input');
-            inputs.forEach(inp => {
-                inp.addEventListener('input', checkPrepReady);
-            });
-        }
-
-        function checkPrepReady() {
-            const t = document.getElementById('clue-top').value.trim();
-            const r = document.getElementById('clue-right').value.trim();
-            const b = document.getElementById('clue-bottom').value.trim();
-            const l = document.getElementById('clue-left').value.trim();
-
-            myBoard.clues = { top: t, right: r, bottom: b, left: l };
-            els.actionBtn.disabled = !(t && r && b && l);
+            document.querySelectorAll('.clue-box input').forEach(inp => inp.addEventListener('input', () => {
+                const t = document.getElementById('clue-top').value.trim(), r = document.getElementById('clue-right').value.trim(), b = document.getElementById('clue-bottom').value.trim(), l = document.getElementById('clue-left').value.trim();
+                myBoard.clues = { top: t, right: r, bottom: b, left: l };
+                els.actionBtn.disabled = !(t && r && b && l);
+            }));
         }
 
         els.actionBtn.addEventListener('click', () => {
             if (currentPhase === STATE.PREP) {
-                // Submit board
-                els.actionBtn.style.display = 'none';
-                showWaiting("Waiting for others", "Everyone needs to finish writing clues.");
-
-                const payload = {
-                    type: 'SUBMIT_BOARD',
-                    board: myBoard
-                };
-
-                if (isHost) handleBoardSubmission(myPeerId, myBoard);
-                else conn.send(payload);
-            }
-            else if (currentPhase === STATE.SOLVING) {
-                sendVerifyRequest();
-            }
+                els.actionBtn.style.display = 'none'; showWaiting("Waiting for others", "Everyone needs to finish writing clues.");
+                if (isHost) handleBoardSubmission(myPeerId, myBoard); else conn.send({ type: 'SUBMIT_BOARD', board: myBoard });
+            } else if (currentPhase === STATE.SOLVING) sendVerifyRequest();
         });
-
-        // --- PHASE 2: RESOLUTION (Team) ---
-
-        function startResolutionRound(spectatorId, attempt) {
-            activeSpectatorId = spectatorId;
-            attemptCount = attempt;
-            currentPhase = STATE.SOLVING;
-
-            const spectatorName = players.find(p => p.id === spectatorId)?.name || "Unknown";
-            const isMe = (myPeerId === spectatorId);
-
-            els.phaseDisplay.textContent = `Solving ${spectatorName}'s Board`;
-            els.instruction.textContent = isMe
-                ? "Please remain silent while they solve."
-                : `Team: Solve ${spectatorName}'s clues! Drag tiles to slots.`;
-
-            els.actionBtn.textContent = "Verify Solution";
-            els.actionBtn.disabled = isMe; // Spectator can't click verify
-            els.actionBtn.style.display = "block";
-
-            // Setup Board for everyone
-            els.waitingScreen.style.display = 'none'; // CRITICAL FIX: No overlay for spectator
-
-            if (isMe) {
-                els.spectatorBanner.style.display = 'block'; // Show banner instead
-            } else {
-                els.spectatorBanner.style.display = 'none';
-            }
-        }
-
-        /**
-         * HOST LOGIC
-         */
-        function hostStartGame() {
-            if (players.length < 2) return alert("Need 2+ players.");
-
-            // Broadcast Prep Start
-            broadcast({ type: 'START_PREP' });
-            startPrepPhase(); // Host does it too
-        }
-
-        function handleBoardSubmission(pid, board) {
-            hostLobbyState[pid] = board;
-
-            // Mark player as ready in UI
-            const p = players.find(x => x.id === pid);
-            if (p) p.status = 'done';
-            updateHostList();
-
-            // Check if all ready
-            if (Object.keys(hostLobbyState).length === players.length) {
-                // All boards received. Start first resolution round.
-                players = shuffle(players);
-                setTimeout(() => hostNextRound(0), 1000);
-            }
-        }
-
-        function hostNextRound(playerIndex) {
-            if (playerIndex >= players.length) {
-                broadcast({ type: 'GAME_OVER', score: totalScore });
-                return;
-            }
-
-            const spectator = players[playerIndex];
-            const boardData = hostLobbyState[spectator.id];
-            activeSolution = boardData;
-
-            const realTiles = [
-                boardData.solution.tl.tile,
-                boardData.solution.tr.tile,
-                boardData.solution.bl.tile,
-                boardData.solution.br.tile
-            ];
-            const decoy = generateTile('decoy');
-            const pool = shuffle([...realTiles, decoy]);
-
-            const roundState = {
-                spectatorId: spectator.id,
-                attempt: 1,
-                clues: boardData.clues,
-                dock: pool,
-                slots: { tl: null, tr: null, bl: null, br: null },
-                playerIndex: playerIndex
-            };
-
-            broadcast({ type: 'START_ROUND', state: roundState });
-            handleStartRound(roundState);
-        }
-
-        function verifySolution(currentSlots) {
-            const sol = activeSolution.solution;
-            let correctCount = 0;
-            const feedback = { tl: false, tr: false, bl: false, br: false };
-
-            ['tl', 'tr', 'bl', 'br'].forEach(pos => {
-                const placed = currentSlots[pos];
-                const answer = sol[pos];
-                if (placed && placed.tileId === answer.tile.id && placed.rot === answer.rot) {
-                    correctCount++;
-                    feedback[pos] = true;
-                }
-            });
-
-            if (attemptCount === 1) {
-                if (correctCount === 4) {
-                    totalScore += 6;
-                    broadcast({ type: 'ROUND_RESULT', result: 'PERFECT', score: 6, feedback, total: totalScore });
-                    setTimeout(() => {
-                        const idx = players.findIndex(p => p.id === activeSpectatorId);
-                        hostNextRound(idx + 1);
-                    }, 3000);
-                } else {
-                    broadcast({ type: 'ROUND_RESULT', result: 'TRY_AGAIN', feedback });
-                    attemptCount = 2;
-                }
-            } else {
-                totalScore += correctCount;
-                broadcast({ type: 'ROUND_RESULT', result: 'DONE', score: correctCount, feedback, total: totalScore });
-                setTimeout(() => {
-                    const idx = players.findIndex(p => p.id === activeSpectatorId);
-                    hostNextRound(idx + 1);
-                }, 3000);
-            }
-        }
-
-        /**
-         * NETWORK HANDLERS
-         */
-
-        function setupHost() {
-            myName = prompt("Enter Host Name:") || "Host";
-            isHost = true;
-            peer = new Peer();
-
-            peer.on('open', (id) => {
-                myPeerId = id;
-                els.roomCode.innerText = id;
-                els.startView.style.display = 'none';
-                els.hostView.style.display = 'block';
-
-                players.push({ id: myPeerId, name: myName, status: 'waiting' });
-                updateHostList();
-            });
-
-            peer.on('connection', (c) => {
-                connections[c.peer] = c;
-                c.on('data', (data) => {
-                    if (data.type === 'JOIN') {
-                        players.push({ id: c.peer, name: data.name, status: 'waiting' });
-                        updateHostList();
-                        broadcast({ type: 'PLAYER_UPDATE', players });
-                        els.startBtn.disabled = players.length < 2;
-                        els.startBtn.innerText = players.length < 2 ? "Waiting for players..." : "Start Game";
-                    }
-                    else if (data.type === 'SUBMIT_BOARD') {
-                        handleBoardSubmission(c.peer, data.board);
-                    }
-                    else if (data.type === 'TILE_MOVE') {
-                        // Relay
-                        broadcast(data);
-                        handleTileMove(data);
-                    }
-                    else if (data.type === 'VERIFY') {
-                        verifySolution(data.slots);
-                    }
-                });
-            });
-        }
-
-        function setupJoin() {
-            els.startView.style.display = 'none';
-            els.joinView.style.display = 'block';
-        }
-
-        function joinGame() {
-            myName = document.getElementById('playerName').value || "Guest";
-            const code = document.getElementById('joinCode').value;
-            if (!code) return alert("Enter code");
-
-            peer = new Peer();
-            peer.on('open', (id) => {
-                myPeerId = id;
-                conn = peer.connect(code);
-
-                conn.on('open', () => {
-                    els.lobbyModal.style.display = 'none';
-                    showWaiting("Connected", "Waiting for host to start...");
-                    conn.send({ type: 'JOIN', name: myName });
-                });
-
-                conn.on('data', handleData);
-            });
-        }
-
-        function broadcast(msg) {
-            Object.values(connections).forEach(c => c.send(msg));
-            if (isHost) handleData(msg);
-        }
-
-        function handleData(data) {
-            if (data.type === 'PLAYER_UPDATE') { /* Optional: update lobby ui */ }
-            else if (data.type === 'START_PREP') { startPrepPhase(); }
-            else if (data.type === 'START_ROUND') { handleStartRound(data.state); }
-            else if (data.type === 'TILE_MOVE') { handleTileMove(data); }
-            else if (data.type === 'ROUND_RESULT') { handleRoundResult(data); }
-            else if (data.type === 'GAME_OVER') {
-                els.waitingScreen.style.display = 'grid';
-                els.waitTitle.textContent = "Game Over!";
-                els.waitMsg.textContent = `Total Team Score: ${data.score}`;
-                els.actionBtn.style.display = 'none';
-            }
-        }
-
-        // --- SHARED HANDLERS ---
 
         function handleStartRound(state) {
             activeSpectatorId = state.spectatorId;
             attemptCount = state.attempt;
             currentPhase = STATE.SOLVING;
+            if (state.totalScore !== undefined) totalScore = state.totalScore;
+            if (state.players) players = state.players;
 
-            renderBoard({
-                clues: state.clues,
-                slots: { tl: null, tr: null, bl: null, br: null },
-                dock: state.dock
-            }, true);
+            els.scoreDisplay.textContent = `Score: ${totalScore}`;
+            const spectatorName = players.find(p => p.id === activeSpectatorId)?.name || "Unknown";
+            const isMe = (myPeerId === activeSpectatorId);
+            els.phaseDisplay.textContent = `Solving ${spectatorName}'s Board`;
+            els.instruction.textContent = isMe ? "Please remain silent while they solve." : `Team: Solve ${spectatorName}'s clues!`;
+            els.actionBtn.style.display = "block"; els.actionBtn.disabled = isMe;
+            els.waitingScreen.style.display = 'none';
+            els.spectatorBanner.style.display = isMe ? 'block' : 'none';
 
-            startResolutionRound(activeSpectatorId, state.attempt);
+            renderBoard({ clues: state.clues, slots: { tl: null, tr: null, bl: null, br: null }, dock: state.dock }, true);
         }
 
         function handleTileMove(data) {
-            // data: { tileId, targetSlot (or 'dock'), rotation }
             const tileEl = document.querySelector(`.tile[data-id="${data.tileId}"]`);
             if (!tileEl) return;
-
-            // 1. Update Position
-            if (data.targetSlot === 'dock') {
-                els.dock.appendChild(tileEl);
-                tileEl.style.transform = '';
-            } else {
-                const slot = document.querySelector(`.slot.${data.targetSlot}`);
-                if (slot) slot.appendChild(tileEl);
+            const targetParent = data.targetSlot === 'dock' ? els.dock : document.querySelector(`.slot.${data.targetSlot}`);
+            if (tileEl.parentElement !== targetParent && targetParent) {
+                targetParent.appendChild(tileEl);
             }
-
-            // 2. Update Rotation VISUALLY (using stored words)
-            // CRITICAL FIX: Parse the original words and apply new rotation
-            const originalWords = JSON.parse(tileEl.dataset.originalWords || "[]");
-            updateTileVisuals(tileEl, data.rotation, originalWords);
+            updateTileVisuals(tileEl, data.rotation, JSON.parse(tileEl.dataset.originalWords));
         }
 
-        function handleRoundResult(data) {
-            els.scoreDisplay.textContent = `Score: ${data.total || totalScore}`;
+        function hostNextRound(playerIndex) {
+            if (playerIndex >= players.length) return broadcast({ type: 'GAME_OVER', score: totalScore });
+            const spectator = players[playerIndex], boardData = hostLobbyState[spectator.id];
+            activeSolution = boardData;
+            const pool = shuffle([boardData.solution.tl.tile, boardData.solution.tr.tile, boardData.solution.bl.tile, boardData.solution.br.tile, generateTile('decoy')]);
+            const roundState = { spectatorId: spectator.id, attempt: 1, clues: boardData.clues, dock: pool, slots: { tl: null, tr: null, bl: null, br: null }, playerIndex: playerIndex, totalScore: totalScore, players: players };
+            broadcast({ type: 'START_ROUND', state: roundState });
+        }
 
-            if (data.result === 'PERFECT') {
-                els.instruction.textContent = "Perfect! +6 Points!";
-                els.instruction.style.color = 'var(--ok)';
-                document.querySelectorAll('.tile').forEach(t => t.classList.add('locked'));
+        function verifySolution(currentSlots) {
+            const sol = activeSolution.solution;
+            let correctCount = 0; const feedback = { tl: false, tr: false, bl: false, br: false };
+            ['tl', 'tr', 'bl', 'br'].forEach(pos => {
+                const p = currentSlots[pos], a = sol[pos];
+                if (p && p.tileId === a.tile.id && p.rot === a.rot) { correctCount++; feedback[pos] = true; }
+            });
+            if (attemptCount === 1) {
+                if (correctCount === 4) { totalScore += 6; broadcast({ type: 'ROUND_RESULT', result: 'PERFECT', feedback, total: totalScore }); setTimeout(() => hostNextRound(players.findIndex(p => p.id === activeSpectatorId) + 1), 3000); }
+                else { broadcast({ type: 'ROUND_RESULT', result: 'TRY_AGAIN', feedback }); attemptCount = 2; }
+            } else {
+                totalScore += correctCount; broadcast({ type: 'ROUND_RESULT', result: 'DONE', score: correctCount, feedback, total: totalScore });
+                setTimeout(() => hostNextRound(players.findIndex(p => p.id === activeSpectatorId) + 1), 3000);
             }
-            else if (data.result === 'TRY_AGAIN') {
-                els.instruction.textContent = "Incorrect. Wrong tiles removed. 2nd Attempt!";
-                els.instruction.style.color = 'var(--danger)';
-                attemptCount = 2;
+        }
 
-                Object.entries(data.feedback).forEach(([slotKey, isCorrect]) => {
-                    if (!isCorrect) {
-                        const slot = document.querySelector(`.slot.${slotKey}`);
-                        const tile = slot.querySelector('.tile');
-                        if (tile) {
-                            els.dock.appendChild(tile);
-                            tile.classList.add('shake');
-                            setTimeout(() => tile.classList.remove('shake'), 500);
-                        }
-                    } else {
-                        const slot = document.querySelector(`.slot.${slotKey}`);
-                        const tile = slot.querySelector('.tile');
-                        if (tile) tile.classList.add('locked');
-                    }
+        function setupHost() {
+            myName = prompt("Name:") || "Host"; isHost = true; peer = new Peer();
+            peer.on('open', (id) => { myPeerId = id; els.roomCode.innerText = id; els.startView.style.display = 'none'; els.hostView.style.display = 'block'; players.push({ id, name: myName, status: 'waiting' }); updateHostList(); });
+            peer.on('connection', (c) => {
+                connections[c.peer] = c; c.on('data', (d) => {
+                    if (d.type === 'JOIN') { players.push({ id: c.peer, name: d.name, status: 'waiting' }); updateHostList(); broadcast({ type: 'PLAYER_UPDATE', players }); els.startBtn.disabled = players.length < 2; els.startBtn.innerText = "Start Game"; }
+                    else if (d.type === 'SUBMIT_BOARD') handleBoardSubmission(c.peer, d.board);
+                    else if (d.type === 'TILE_MOVE') { broadcast(d); handleTileMove(d); }
+                    else if (d.type === 'VERIFY') verifySolution(d.slots);
                 });
-            }
-            else if (data.result === 'DONE') {
-                els.instruction.textContent = `Round Done! +${data.score} Points.`;
-                document.querySelectorAll('.tile').forEach(t => t.classList.add('locked'));
+            });
+        }
+
+        function setupJoin() { els.startView.style.display = 'none'; els.joinView.style.display = 'block'; }
+        function joinGame() {
+            myName = document.getElementById('playerName').value || "Guest"; const code = document.getElementById('joinCode').value; if (!code) return;
+            peer = new Peer(); peer.on('open', (id) => { myPeerId = id; conn = peer.connect(code); conn.on('open', () => { els.lobbyModal.style.display = 'none'; showWaiting("Connected", "Waiting for host..."); conn.send({ type: 'JOIN', name: myName }); }); conn.on('data', handleData); });
+        }
+
+        function broadcast(m) { Object.values(connections).forEach(c => c.send(m)); handleData(m); }
+        function handleData(d) {
+            if (d.type === 'START_PREP') startPrepPhase();
+            else if (d.type === 'START_ROUND') handleStartRound(d.state);
+            else if (d.type === 'TILE_MOVE') handleTileMove(d);
+            else if (d.type === 'ROUND_RESULT') handleRoundResult(d);
+            else if (d.type === 'GAME_OVER') { showWaiting("Game Over!", `Final Score: ${d.score}`); els.actionBtn.style.display = 'none'; }
+        }
+
+        function handleRoundResult(d) {
+            totalScore = d.total || totalScore; els.scoreDisplay.textContent = `Score: ${totalScore}`;
+            if (d.result === 'PERFECT') els.instruction.textContent = "Perfect! +6 Points!";
+            else if (d.result === 'TRY_AGAIN') {
+                els.instruction.textContent = "Incorrect. 2nd Attempt!"; attemptCount = 2;
+                Object.entries(d.feedback).forEach(([k, ok]) => {
+                    const slot = document.querySelector(`.slot.${k}`), tile = slot.querySelector('.tile');
+                    if (tile) { if (!ok) { els.dock.appendChild(tile); tile.classList.add('shake'); setTimeout(() => tile.classList.remove('shake'), 500); } else tile.classList.add('locked'); }
+                });
             }
         }
 
         function sendVerifyRequest() {
-            const slots = {};
-            ['tl', 'tr', 'bl', 'br'].forEach(k => {
-                const el = document.querySelector(`.slot.${k} .tile`);
-                if (el) {
-                    slots[k] = { tileId: el.dataset.id, rot: parseInt(el.dataset.rot) };
-                }
-            });
-
-            const msg = { type: 'VERIFY', slots };
-            if (isHost) verifySolution(slots);
-            else conn.send(msg);
+            const slots = {};['tl', 'tr', 'bl', 'br'].forEach(k => { const el = document.querySelector(`.slot.${k} .tile`); if (el) slots[k] = { tileId: el.dataset.id, rot: parseInt(el.dataset.rot) }; });
+            if (isHost) verifySolution(slots); else conn.send({ type: 'VERIFY', slots });
         }
 
-        // DRAG AND DROP HANDLERS (Global)
-        const slotsAndDock = [...document.querySelectorAll('.slot'), els.dock];
+        function handleBoardSubmission(pid, b) { hostLobbyState[pid] = b; const p = players.find(x => x.id === pid); if (p) p.status = 'done'; updateHostList(); if (Object.keys(hostLobbyState).length === players.length) { players = shuffle(players); setTimeout(() => hostNextRound(0), 1000); } }
+        function updateHostList() { els.hostList.innerHTML = players.map(p => `<div class="player-row"><span>${p.name}</span><span class="badge ${p.status === 'done' ? 'done' : ''}">${p.status}</span></div>`).join(''); }
+        function showWaiting(t, m) { els.waitingScreen.style.display = 'grid'; els.waitTitle.textContent = t; els.waitMsg.textContent = m; }
 
-        slotsAndDock.forEach(container => {
-            container.addEventListener('dragover', e => {
-                e.preventDefault();
-                container.classList.add('highlight');
-            });
-            container.addEventListener('dragleave', () => container.classList.remove('highlight'));
-            container.addEventListener('drop', e => {
-                e.preventDefault();
-                container.classList.remove('highlight');
-
-                if (currentPhase === STATE.SOLVING && myPeerId === activeSpectatorId) return;
-                if (currentPhase === STATE.PREP) return;
-
-                const json = e.dataTransfer.getData('text/plain');
-                if (!json) return;
-                const { id } = JSON.parse(json);
-                const tile = document.querySelector(`.tile[data-id="${id}"]`);
-
+        [...document.querySelectorAll('.slot'), els.dock].forEach(c => {
+            c.addEventListener('dragover', e => { e.preventDefault(); c.classList.add('highlight'); });
+            c.addEventListener('dragleave', () => c.classList.remove('highlight'));
+            c.addEventListener('drop', e => {
+                e.preventDefault(); c.classList.remove('highlight'); if (myPeerId === activeSpectatorId || currentPhase === STATE.PREP) return;
+                const id = JSON.parse(e.dataTransfer.getData('text/plain')).id, tile = document.querySelector(`.tile[data-id="${id}"]`);
                 if (tile && !tile.classList.contains('locked')) {
-                    container.appendChild(tile);
-
-                    let target = 'dock';
-                    if (container.classList.contains('slot')) {
-                        if (container.classList.contains('tl')) target = 'tl';
-                        if (container.classList.contains('tr')) target = 'tr';
-                        if (container.classList.contains('bl')) target = 'bl';
-                        if (container.classList.contains('br')) target = 'br';
-                    }
-
-                    const moveData = {
-                        type: 'TILE_MOVE',
-                        tileId: id,
-                        targetSlot: target,
-                        rotation: parseInt(tile.dataset.rot)
-                    };
-
-                    if (isHost) {
-                        broadcast(moveData);
-                        handleTileMove(moveData);
-                    }
-                    else conn.send(moveData);
+                    c.appendChild(tile); let target = c.classList.contains('dock') ? 'dock' : [...c.classList].find(cl => ['tl', 'tr', 'bl', 'br'].includes(cl));
+                    const moveData = { type: 'TILE_MOVE', tileId: id, targetSlot: target, rotation: parseInt(tile.dataset.rot) };
+                    if (isHost) { broadcast(moveData); handleTileMove(moveData); } else conn.send(moveData);
                 }
             });
         });
-
-        /**
-         * UI HELPERS
-         */
-        function updateHostList() {
-            els.hostList.innerHTML = players.map(p => `
-        <div class="player-row">
-            <span>${p.name} ${p.id === myPeerId ? '(You)' : ''}</span>
-            <span class="badge ${p.status === 'done' ? 'done' : ''}">${p.status}</span>
-        </div>
-    `).join('');
-        }
-
-        function showWaiting(title, msg) {
-            els.waitingScreen.style.display = 'grid';
-            els.waitTitle.textContent = title;
-            els.waitMsg.textContent = msg;
-        }
-
     </script>
 </body>
 

@@ -549,6 +549,7 @@
     <h1>🍀 So Clover</h1>
     <div class="controls">
         <button id="actionBtn" style="display:none;">Submit Clues</button>
+        <button id="nextBoardBtn" class="secondary" style="display:none;" onclick="handleNextBoard()">Next Board</button>
         <button id="playAgainBtn" class="secondary" style="display:none;" onclick="handlePlayAgain()">Play Again</button>
     </div>
 </header>
@@ -652,6 +653,7 @@
         board: document.getElementById('board'),
         dock: document.getElementById('dock'),
         actionBtn: document.getElementById('actionBtn'),
+        nextBoardBtn: document.getElementById('nextBoardBtn'),
         playAgainBtn: document.getElementById('playAgainBtn'),
         instruction: document.getElementById('instruction'),
         waitingScreen: document.getElementById('waitingScreen'),
@@ -873,6 +875,7 @@
         els.actionBtn.disabled = true;
         els.waitingScreen.style.display = 'none';
         els.spectatorBanner.style.display = 'none';
+        els.nextBoardBtn.style.display = 'none';
         els.playAgainBtn.style.display = 'none';
         els.phaseDisplay.textContent = isLocalMode ? "Prep Phase" : "Writing Clues...";
 
@@ -992,7 +995,6 @@
     }
 
     // --- PHASE 2: RESOLUTION (Team) ---
-
     function startResolutionRound(spectatorId, attempt) {
         activeSpectatorId = spectatorId;
         attemptCount = attempt;
@@ -1008,6 +1010,7 @@
 
         els.actionBtn.textContent = "Verify Solution";
         els.actionBtn.style.display = "block";
+        els.nextBoardBtn.style.display = 'none';
 
         // Setup Board for everyone
         els.waitingScreen.style.display = 'none';
@@ -1084,7 +1087,7 @@
     function verifySolution(currentSlots) {
         const sol = activeSolution.solution;
         let correctCount = 0;
-        const feedback = {tl: false, tr: false, bl: false, br: false};
+        const feedback = { tl: false, tr: false, bl: false, br: false };
 
         ['tl', 'tr', 'bl', 'br'].forEach(pos => {
             const placed = currentSlots[pos];
@@ -1098,22 +1101,16 @@
         if (attemptCount === 1) {
             if (correctCount === 4) {
                 totalScore += 6;
-                broadcast({type: 'ROUND_RESULT', result: 'PERFECT', score: 6, feedback, total: totalScore});
-                setTimeout(() => {
-                    const idx = players.findIndex(p => p.id === activeSpectatorId);
-                    hostNextRound(idx + 1);
-                }, 3000);
+                broadcast({ type: 'ROUND_RESULT', result: 'PERFECT', score: 6, feedback, total: totalScore });
+                // Don't auto-advance - wait for host
             } else {
-                broadcast({type: 'ROUND_RESULT', result: 'TRY_AGAIN', feedback});
+                broadcast({ type: 'ROUND_RESULT', result: 'TRY_AGAIN', feedback });
                 attemptCount = 2;
             }
         } else {
             totalScore += correctCount;
-            broadcast({type: 'ROUND_RESULT', result: 'DONE', score: correctCount, feedback, total: totalScore});
-            setTimeout(() => {
-                const idx = players.findIndex(p => p.id === activeSpectatorId);
-                hostNextRound(idx + 1);
-            }, 3000);
+            broadcast({ type: 'ROUND_RESULT', result: 'DONE', score: correctCount, feedback, total: totalScore });
+            // Don't auto-advance - wait for host
         }
     }
 
@@ -1207,12 +1204,14 @@
             totalScore = 0;
             els.scoreDisplay.textContent = 'Score: 0';
             els.playAgainBtn.style.display = 'none';
+            els.nextBoardBtn.style.display = 'none';
         }
         else if (data.type === 'GAME_OVER') {
             els.waitingScreen.style.display = 'grid';
             els.waitTitle.textContent = "Game Over!";
             els.waitMsg.textContent = `Total Team Score: ${data.score}`;
             els.actionBtn.style.display = 'none';
+            els.nextBoardBtn.style.display = 'none';
 
             // Show play again button (only for host in multiplayer)
             if (isLocalMode || isHost) {
@@ -1260,6 +1259,11 @@
             els.instruction.style.color = 'var(--ok)';
             document.querySelectorAll('.tile').forEach(t => t.classList.add('locked'));
             els.actionBtn.style.display = 'none';
+
+            // Show next board button for host in multiplayer
+            if (isHost && !isLocalMode) {
+                els.nextBoardBtn.style.display = 'block';
+            }
         }
         else if (data.result === 'TRY_AGAIN') {
             els.instruction.textContent = "Incorrect. Wrong tiles removed. 2nd Attempt!";
@@ -1291,6 +1295,9 @@
 
             if (isLocalMode) {
                 els.playAgainBtn.style.display = 'block';
+            } else if (isHost) {
+                // Show next board button for host in multiplayer
+                els.nextBoardBtn.style.display = 'block';
             }
         }
     }
@@ -1458,6 +1465,15 @@
         if (currentPhase === STATE.SOLVING) {
             els.actionBtn.disabled = !allFilled || (myPeerId === activeSpectatorId);
         }
+    }
+
+    function handleNextBoard() {
+        if (!isHost) return;
+
+        els.nextBoardBtn.style.display = 'none';
+
+        const idx = players.findIndex(p => p.id === activeSpectatorId);
+        hostNextRound(idx + 1);
     }
 
     /**

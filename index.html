@@ -513,7 +513,7 @@
 
 <body>
 
-<div id="lobbyModal" class="modal">
+<div class="modal" id="lobbyModal">
     <div class="modal-content" id="startView">
         <h1>🍀 So Clover!</h1>
         <p>Cooperative Multiplayer</p>
@@ -527,7 +527,7 @@
     <div class="modal-content" id="createHostView" style="display:none;">
         <h2>Create Lobby</h2>
         <div class="input-group">
-            <input type="text" id="hostName" placeholder="Your Name" maxlength="12">
+            <input id="hostName" maxlength="12" placeholder="Your Name" type="text">
         </div>
         <button onclick="createLobby()">Create</button>
         <button class="secondary" onclick="backToStart()">Back</button>
@@ -536,17 +536,19 @@
     <div class="modal-content" id="hostView" style="display:none;">
         <h2>Lobby Created</h2>
         <p style="color:var(--muted)">Share this code:</p>
-        <div style="font-size: 2rem; color: var(--accent); font-family: monospace; margin: 10px 0; user-select: text;"
-             id="roomCodeDisplay">...</div>
+        <div id="roomCodeDisplay"
+             style="font-size: 2rem; color: var(--accent); font-family: monospace; margin: 10px 0; user-select: text;">
+            ...
+        </div>
         <div class="player-list" id="hostPlayerList"></div>
-        <button id="startBtn" onclick="hostStartGame()" disabled>Start Game (Waiting for players...)</button>
+        <button disabled id="startBtn" onclick="hostStartGame()">Start Game (Waiting for players...)</button>
     </div>
 
     <div class="modal-content" id="joinView" style="display:none;">
         <h2>Join Lobby</h2>
         <div class="input-group">
-            <input type="text" id="playerName" placeholder="Your Name" maxlength="12">
-            <input type="text" id="joinCode" placeholder="Room Code">
+            <input id="playerName" maxlength="12" placeholder="Your Name" type="text">
+            <input id="joinCode" placeholder="Room Code" type="text">
         </div>
         <button onclick="joinGame()">Join</button>
         <button class="secondary" onclick="backToStart()">Back</button>
@@ -557,8 +559,10 @@
     <h1>🍀 So Clover</h1>
     <div class="controls">
         <button id="actionBtn" style="display:none;">Submit Clues</button>
-        <button id="nextBoardBtn" class="secondary" style="display:none;" onclick="handleNextBoard()">Next Board</button>
-        <button id="playAgainBtn" class="secondary" style="display:none;" onclick="handlePlayAgain()">Play Again</button>
+        <button class="secondary" id="nextBoardBtn" onclick="handleNextBoard()" style="display:none;">Next Board
+        </button>
+        <button class="secondary" id="playAgainBtn" onclick="handlePlayAgain()" style="display:none;">Play Again
+        </button>
     </div>
 </header>
 
@@ -606,18 +610,55 @@
      * WORD BANK
      */
     const WORDS = [
-        "Apple", "Train", "Robot", "Forest", "Ocean", "Desert", "Space", "Magic", "Music", "Paint",
-        "School", "Winter", "Summer", "Pizza", "Coffee", "Ghost", "Alien", "Castle", "Dragon", "Sword",
-        "Book", "Phone", "Camera", "Light", "Shadow", "River", "Mountain", "Cloud", "Rain", "Fire",
-        "Ice", "Gold", "Silver", "Love", "Time", "Dream", "Night", "Day", "Star", "Moon",
-        "Sun", "Tree", "Flower", "Bird", "Fish", "Cat", "Dog", "Horse", "Lion", "Tiger",
-        "Bear", "Wolf", "Fox", "Road", "Bridge", "City", "House", "Room", "Door", "Key",
-        "Lock", "Map", "Ship", "Plane", "Car", "Bike", "Shoe", "Hat", "Coat", "Glass",
-        "Plate", "Spoon", "Fork", "Knife", "Bread", "Cheese", "Milk", "Egg", "Cake", "Pie",
-        "Honey", "Bee", "Ant", "Spider", "Web", "Net", "Ball", "Bat", "Glove", "Ring",
-        "King", "Queen", "Prince", "Baby", "Man", "Woman", "Boy", "Girl", "Doctor", "Nurse",
-        "Chef", "Cop", "Thief", "Jail", "Law", "Money", "Bank", "Card", "Dice", "Game"
-    ];
+        "mountain", "valley", "canyon", "plateau", "desert", "dune", "oasis", "forest", "jungle", "meadow", "prairie", "savanna", "tundra", "glacier", "volcano", "island", "archipelago", "peninsula", "coastline", "shore", "beach", "cliff", "cave", "cavern", "waterfall", "river", "stream", "creek", "brook", "lake", "lagoon", "bay", "fjord", "reef", "marsh", "swamp", "bog", "delta", "estuary", "hillside", "summit",
+
+        "dog", "cat", "horse", "cow", "pig", "goat", "sheep", "llama", "alpaca", "deer", "moose", "bison", "camel", "donkey", "zebra", "elephant", "rhino", "hippo", "lion", "tiger", "cheetah", "leopard", "panther", "wolf", "fox", "bear", "koala", "kangaroo", "otter", "beaver", "raccoon", "skunk", "hedgehog", "rabbit", "mouse", "rat", "squirrel", "chipmunk", "bat", "monkey",
+
+        "oak", "maple", "pine", "birch", "cedar", "spruce", "willow", "aspen", "poplar", "sycamore", "palm", "bamboo", "cactus", "aloe", "fern", "moss", "lichen", "ivy", "vine", "tulip", "rose", "daisy", "lily", "orchid", "sunflower", "violet", "peony", "magnolia", "camellia", "lavender", "mint", "basil", "thyme", "rosemary", "sage", "oregano", "nettle", "clover", "acorn", "seed",
+
+        "bread", "butter", "cheese", "milk", "yogurt", "cream", "egg", "bacon", "sausage", "ham", "salad", "soup", "stew", "sandwich", "pizza", "pasta", "noodle", "rice", "curry", "taco", "burrito", "sushi", "dumpling", "pancake", "waffle", "cereal", "granola", "apple", "banana", "orange", "grape", "peach", "pear", "cherry", "lemon", "lime", "blueberry", "strawberry", "chocolate", "cookie",
+
+        "plate", "bowl", "cup", "mug", "glass", "fork", "spoon", "knife", "spatula", "whisk", "ladle", "tongs", "pan", "pot", "kettle", "oven", "stove", "toaster", "blender", "microwave", "fridge", "freezer", "counter", "sink", "faucet", "sponge", "towel", "napkin", "chair", "table", "sofa", "cushion", "pillow", "blanket", "lamp", "candle", "shelf", "drawer", "broom", "bucket",
+
+        "shirt", "t-shirt", "blouse", "sweater", "jacket", "coat", "hoodie", "vest", "dress", "skirt", "pants", "jeans", "shorts", "belt", "scarf", "tie", "bowtie", "hat", "cap", "beanie", "gloves", "mitten", "sock", "shoe", "boot", "sandal", "sneaker", "heel", "laces", "zipper", "button", "collar", "pocket", "sleeve", "fabric", "cotton", "linen", "silk", "denim", "wool",
+
+        "hammer", "nail", "screw", "bolt", "nut", "wrench", "pliers", "drill", "saw", "chisel", "level", "tape", "measure", "sandpaper", "file", "clamp", "vise", "ladder", "toolbox", "glue", "epoxy", "paint", "brush", "roller", "shovel", "rake", "hoe", "axe", "pickaxe", "wheelbarrow", "pipe", "valve", "gasket", "hinge", "socket", "outlet", "wire", "cable", "fuse", "battery",
+
+        "soccer", "football", "basketball", "baseball", "hockey", "tennis", "golf", "volleyball", "rugby", "cricket", "bocce", "badminton", "lacrosse", "fencing", "boxing", "wrestling", "skating", "skiing", "snowboarding", "surfing", "cycling", "running", "jogging", "marathon", "sprint", "relay", "chess", "checkers", "dominoes", "cards", "dice", "puzzle", "riddle", "trivia", "bingo", "karaoke", "foosball", "pinball", "joystick",
+
+        "music", "melody", "rhythm", "harmony", "chord", "scale", "note", "pitch", "tempo", "beat", "song", "lyric", "chorus", "verse", "concert", "recital", "orchestra", "symphony", "band", "choir", "guitar", "piano", "violin", "cello", "trumpet", "trombone", "flute", "clarinet", "saxophone", "drum", "cymbal", "microphone", "speaker", "canvas", "paint", "easel", "palette", "sketch", "sculpture",
+
+        "computer", "laptop", "tablet", "smartphone", "camera", "webcam", "keyboard", "mouse", "monitor", "printer", "router", "modem", "server", "database", "firewall", "cable", "charger", "adapter", "port", "socket", "sensor", "antenna", "satellite", "drone", "console", "gamepad", "controller", "smartwatch", "earbuds", "stylus", "touchscreen", "browser", "website", "app", "file", "folder", "cache", "pixel", "shader", "cursor",
+
+        "car", "truck", "bus", "van", "taxi", "train", "subway", "tram", "trolley", "bicycle", "scooter", "motorcycle", "moped", "skateboard", "rollerblade", "ferry", "boat", "ship", "yacht", "canoe", "kayak", "raft", "sailboat", "barge", "airplane", "jet", "glider", "helicopter", "rocket", "spaceship", "shuttle", "carriage", "wagon", "sled", "sleigh", "snowmobile", "cablecar", "gondola", "elevator",
+
+        "house", "cottage", "cabin", "apartment", "condo", "mansion", "castle", "fortress", "palace", "temple", "museum", "library", "school", "classroom", "office", "studio", "workshop", "garage", "attic", "basement", "hallway", "foyer", "lobby", "kitchen", "pantry", "dining", "living", "bedroom", "bathroom", "closet", "balcony", "terrace", "porch", "patio", "garden", "courtyard", "barn", "shed", "stable", "theater",
+
+        "baker", "chef", "farmer", "gardener", "teacher", "student", "professor", "librarian", "writer", "poet", "artist", "painter", "sculptor", "musician", "singer", "actor", "director", "engineer", "mechanic", "carpenter", "electrician", "plumber", "mason", "tailor", "designer", "doctor", "nurse", "surgeon", "dentist", "therapist", "pilot", "driver", "sailor", "soldier", "guard", "ranger", "cashier", "barista", "waiter",
+
+        "run", "walk", "jump", "hop", "skip", "crawl", "climb", "swim", "dive", "fly", "drive", "ride", "throw", "catch", "kick", "hit", "push", "pull", "lift", "drop", "turn", "spin", "slide", "roll", "hide", "seek", "search", "find", "build", "break", "cut", "paste", "open", "close", "lock", "unlock", "draw", "write", "read", "speak",
+
+        "bright", "dark", "light", "heavy", "soft", "hard", "rough", "smooth", "warm", "cool", "hot", "cold", "fast", "slow", "quick", "quiet", "loud", "clean", "dirty", "fresh", "stale", "salty", "sweet", "bitter", "sour", "spicy", "bland", "sharp", "dull", "small", "big", "tiny", "huge", "narrow", "wide", "short", "tall", "early", "late",
+
+        "idea", "dream", "thought", "memory", "plan", "goal", "hope", "fear", "love", "hate", "joy", "sorrow", "humor", "pride", "guilt", "luck", "fate", "chance", "risk", "rule", "law", "myth", "story", "rumor", "truth", "lie", "secret", "clue", "hint", "sign", "symbol", "pattern", "order", "chaos", "balance", "harmony", "conflict", "peace", "justice",
+
+        "sun", "sunlight", "sunshine", "moon", "star", "sky", "cloud", "fog", "mist", "haze", "rain", "drizzle", "downpour", "storm", "thunder", "lightning", "rainbow", "wind", "breeze", "gust", "gale", "hurricane", "tornado", "blizzard", "snow", "sleet", "hail", "frost", "dew", "icicle", "eclipse", "dusk", "dawn", "sunrise", "sunset", "twilight", "forecast", "climate",
+
+        "ocean", "sea", "wave", "surf", "tide", "current", "ripple", "whirlpool", "foam", "spray", "splash", "bubble", "droplet", "puddle", "pond", "pool", "aquarium", "coral", "kelp", "seaweed", "shoal", "shore", "harbor", "port", "dock", "pier", "anchor", "buoy", "mast", "sail", "hull", "keel", "rudder", "compass", "map", "lantern", "lighthouse", "lifeboat",
+
+        "dragon", "unicorn", "phoenix", "griffin", "mermaid", "centaur", "minotaur", "sphinx", "gargoyle", "troll", "goblin", "elf", "dwarf", "giant", "ogre", "fairy", "sprite", "wizard", "witch", "warlock", "mage", "knight", "paladin", "bard", "druid", "alchemist", "sorcerer", "spell", "potion", "charm", "rune", "relic", "artifact", "crystal", "portal", "quest", "legend", "myth", "prophecy", "citadel",
+
+        "space", "galaxy", "nebula", "star", "planet", "moon", "comet", "asteroid", "meteor", "satellite", "orbit", "apogee", "rocket", "shuttle", "spaceship", "telescope", "observatory", "astronaut", "cosmonaut", "gravity", "magnetism", "energy", "atom", "molecule", "proton", "neutron", "electron", "nucleus", "cell", "tissue", "organ", "DNA", "gene", "enzyme", "quartz", "laboratory", "experiment", "theory", "formula", "spectrum",
+
+        "red", "orange", "yellow", "green", "blue", "indigo", "violet", "pink", "magenta", "cyan", "teal", "turquoise", "maroon", "crimson", "scarlet", "amber", "gold", "silver", "bronze", "black", "white", "gray", "brown", "beige", "circle", "square", "triangle", "rectangle", "rhombus", "diamond", "oval", "ellipse", "star", "heart", "pentagon", "hexagon", "octagon", "cube", "sphere", "pyramid",
+
+        "second", "minute", "hour", "day", "week", "month", "year", "decade", "century", "millennium", "morning", "noon", "afternoon", "evening", "night", "weekend", "weekday", "holiday", "calendar", "schedule", "alarm", "clock", "timer", "stopwatch", "deadline", "birthday", "anniversary", "season", "spring", "summer", "autumn", "winter", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December",
+
+        "eagle", "hawk", "falcon", "owl", "parrot", "canary", "sparrow", "robin", "bluebird", "crow", "raven", "pigeon", "dove", "peacock", "swan", "goose", "duck", "turkey", "flamingo", "heron", "stork", "pelican", "hummingbird", "woodpecker", "butterfly", "moth", "bee", "wasp", "hornet", "ant", "termite", "beetle", "ladybug", "dragonfly", "damselfly", "grasshopper", "cricket", "firefly", "caterpillar", "spider",
+
+        "malarkey", "nincompoop", "gizmo", "widget", "hootenanny", "zigzag", "tomfoolery", "wibble", "bananaphone", "snickerdoodle",
+
+        "key", "lock", "door", "window", "wall", "floor", "ceiling", "roof", "brick", "stone", "tile", "paint", "picture", "photo", "frame", "mirror", "clock", "watch", "calendar", "book", "notebook", "paper", "pencil", "pen", "marker", "crayon", "ruler", "glue", "tape", "key", "lock", "door", "window", "wall", "floor", "ceiling", "roof", "brick", "stone", "tile", "paint", "picture", "photo", "frame", "mirror", "clock", "watch", "calendar", "book", "notebook", "paper", "pencil", "pen", "marker", "crayon", "ruler", "glue", "tape", "backpack", "bag", "wallet", "purse", "coin", "cash", "ticket", "receipt", "card", "stamp", "sticker"];
 
     /**
      * GAME STATE
@@ -713,13 +754,14 @@
             players.forEach(p => p.status = 'waiting');
 
             // Notify all clients
-            broadcast({ type: 'PLAY_AGAIN' });
+            broadcast({type: 'PLAY_AGAIN'});
 
             // Start prep for everyone
-            broadcast({ type: 'START_PREP', players });
+            broadcast({type: 'START_PREP', players});
             startPrepPhase();
         }
     }
+
     /**
      * TILE & BOARD RENDERER
      */
@@ -818,7 +860,7 @@
                     return false;
                 }
                 el.classList.add('dragging');
-                e.dataTransfer.setData('text/plain', JSON.stringify({ id: tile.id }));
+                e.dataTransfer.setData('text/plain', JSON.stringify({id: tile.id}));
             });
             el.addEventListener('dragend', () => el.classList.remove('dragging'));
         }
@@ -905,13 +947,13 @@
 
         myBoard = {
             solution: {},
-            clues: { top: '', right: '', bottom: '', left: '' }
+            clues: {top: '', right: '', bottom: '', left: ''}
         };
 
         // Place them visually in slots immediately (fixed for Prep)
         slots.forEach((s, i) => {
             const rot = Math.floor(Math.random() * 4);
-            myBoard.solution[s] = { tile: tiles[i], rot: rot };
+            myBoard.solution[s] = {tile: tiles[i], rot: rot};
 
             const slotEl = document.querySelector(`.slot.${s}`);
             slotEl.innerHTML = '';
@@ -979,7 +1021,7 @@
         attemptCount = 1;
 
         // Store solution
-        activeSolution = { solution: myBoard.solution };
+        activeSolution = {solution: myBoard.solution};
 
         // Create tile pool (4 real + 1 decoy)
         const realTiles = [
@@ -994,7 +1036,7 @@
         // Render solving state
         renderBoard({
             clues: myBoard.clues,
-            slots: { tl: null, tr: null, bl: null, br: null },
+            slots: {tl: null, tr: null, bl: null, br: null},
             dock: pool
         }, true);
 
@@ -1046,7 +1088,7 @@
         if (players.length < 2) return alert("Need 2+ players.");
 
         // Broadcast Prep Start with player list
-        broadcast({ type: 'START_PREP', players });
+        broadcast({type: 'START_PREP', players});
         startPrepPhase(); // Host does it too
     }
 
@@ -1101,7 +1143,7 @@
     function verifySolution(currentSlots) {
         const sol = activeSolution.solution;
         let correctCount = 0;
-        const feedback = { tl: false, tr: false, bl: false, br: false };
+        const feedback = {tl: false, tr: false, bl: false, br: false};
 
         ['tl', 'tr', 'bl', 'br'].forEach(pos => {
             const placed = currentSlots[pos];
@@ -1115,15 +1157,15 @@
         if (attemptCount === 1) {
             if (correctCount === 4) {
                 totalScore += 6;
-                broadcast({ type: 'ROUND_RESULT', result: 'PERFECT', score: 6, feedback, total: totalScore });
+                broadcast({type: 'ROUND_RESULT', result: 'PERFECT', score: 6, feedback, total: totalScore});
                 // Don't auto-advance - wait for host
             } else {
-                broadcast({ type: 'ROUND_RESULT', result: 'TRY_AGAIN', feedback });
+                broadcast({type: 'ROUND_RESULT', result: 'TRY_AGAIN', feedback});
                 attemptCount = 2;
             }
         } else {
             totalScore += correctCount;
-            broadcast({ type: 'ROUND_RESULT', result: 'DONE', score: correctCount, feedback, total: totalScore });
+            broadcast({type: 'ROUND_RESULT', result: 'DONE', score: correctCount, feedback, total: totalScore});
             // Don't auto-advance - wait for host
         }
     }
@@ -1154,7 +1196,7 @@
             els.createHostView.style.display = 'none';
             els.hostView.style.display = 'block';
 
-            players.push({ id: myPeerId, name: myName, status: 'waiting' });
+            players.push({id: myPeerId, name: myName, status: 'waiting'});
             updateHostList();
         });
 
@@ -1162,22 +1204,19 @@
             connections[c.peer] = c;
             c.on('data', (data) => {
                 if (data.type === 'JOIN') {
-                    players.push({ id: c.peer, name: data.name, status: 'waiting' });
+                    players.push({id: c.peer, name: data.name, status: 'waiting'});
                     updateHostList();
                     // Send full player list to all clients
-                    broadcast({ type: 'PLAYER_UPDATE', players });
+                    broadcast({type: 'PLAYER_UPDATE', players});
                     els.startBtn.disabled = players.length < 2;
                     els.startBtn.innerText = players.length < 2 ? "Waiting for players..." : "Start Game";
-                }
-                else if (data.type === 'SUBMIT_BOARD') {
+                } else if (data.type === 'SUBMIT_BOARD') {
                     handleBoardSubmission(c.peer, data.board);
-                }
-                else if (data.type === 'TILE_MOVE') {
+                } else if (data.type === 'TILE_MOVE') {
                     // Relay
                     broadcast(data);
                     handleTileMove(data);
-                }
-                else if (data.type === 'VERIFY') {
+                } else if (data.type === 'VERIFY') {
                     verifySolution(data.slots);
                 }
             });
@@ -1217,21 +1256,21 @@
     function handleData(data) {
         if (data.type === 'PLAYER_UPDATE') {
             players = data.players; // Update client's player list
-        }
-        else if (data.type === 'START_PREP') {
+        } else if (data.type === 'START_PREP') {
             if (data.players) players = data.players; // Sync players at game start
             startPrepPhase();
-        }
-        else if (data.type === 'START_ROUND') { handleStartRound(data.state); }
-        else if (data.type === 'TILE_MOVE') { handleTileMove(data); }
-        else if (data.type === 'ROUND_RESULT') { handleRoundResult(data); }
-        else if (data.type === 'PLAY_AGAIN') {
+        } else if (data.type === 'START_ROUND') {
+            handleStartRound(data.state);
+        } else if (data.type === 'TILE_MOVE') {
+            handleTileMove(data);
+        } else if (data.type === 'ROUND_RESULT') {
+            handleRoundResult(data);
+        } else if (data.type === 'PLAY_AGAIN') {
             totalScore = 0;
             els.scoreDisplay.textContent = 'Score: 0';
             els.playAgainBtn.style.display = 'none';
             els.nextBoardBtn.style.display = 'none';
-        }
-        else if (data.type === 'GAME_OVER') {
+        } else if (data.type === 'GAME_OVER') {
             els.waitingScreen.style.display = 'grid';
             els.waitTitle.textContent = "Game Over!";
             els.waitMsg.textContent = `Total Team Score: ${data.score}`;
@@ -1292,8 +1331,7 @@
                 els.nextBoardBtn.textContent = isLastBoard ? "End Game" : "Next Board";
                 els.nextBoardBtn.style.display = 'block';
             }
-        }
-        else if (data.result === 'TRY_AGAIN') {
+        } else if (data.result === 'TRY_AGAIN') {
             els.instruction.textContent = "Incorrect. Wrong tiles removed. 2nd Attempt!";
             els.instruction.style.color = 'var(--danger)';
             attemptCount = 2;
@@ -1315,8 +1353,7 @@
             });
 
             checkAllSlotsFilled();
-        }
-        else if (data.result === 'DONE') {
+        } else if (data.result === 'DONE') {
             els.instruction.textContent = `Round Done! +${data.score} Points.`;
             document.querySelectorAll('.tile').forEach(t => t.classList.add('locked'));
             els.actionBtn.style.display = 'none';
@@ -1407,7 +1444,7 @@
 
             const json = e.dataTransfer.getData('text/plain');
             if (!json) return;
-            const { id } = JSON.parse(json);
+            const {id} = JSON.parse(json);
             const draggedTile = document.querySelector(`.tile[data-id="${id}"]`);
 
             if (!draggedTile || draggedTile.classList.contains('locked')) return;

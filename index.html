@@ -513,7 +513,7 @@
 
 <body>
 
-<div class="modal" id="lobbyModal">
+<div id="lobbyModal" class="modal">
     <div class="modal-content" id="startView">
         <h1>🍀 So Clover!</h1>
         <p>Cooperative Multiplayer</p>
@@ -524,24 +524,32 @@
         </div>
     </div>
 
+    <div class="modal-content" id="createHostView" style="display:none;">
+        <h2>Create Lobby</h2>
+        <div class="input-group">
+            <input type="text" id="hostName" placeholder="Your Name" maxlength="12">
+        </div>
+        <button onclick="createLobby()">Create</button>
+        <button class="secondary" onclick="backToStart()">Back</button>
+    </div>
+
     <div class="modal-content" id="hostView" style="display:none;">
         <h2>Lobby Created</h2>
         <p style="color:var(--muted)">Share this code:</p>
-        <div id="roomCodeDisplay"
-             style="font-size: 2rem; color: var(--accent); font-family: monospace; margin: 10px 0; user-select: text;">...
-        </div>
+        <div style="font-size: 2rem; color: var(--accent); font-family: monospace; margin: 10px 0; user-select: text;"
+             id="roomCodeDisplay">...</div>
         <div class="player-list" id="hostPlayerList"></div>
-        <button disabled id="startBtn" onclick="hostStartGame()">Start Game (Waiting for players...)</button>
+        <button id="startBtn" onclick="hostStartGame()" disabled>Start Game (Waiting for players...)</button>
     </div>
 
     <div class="modal-content" id="joinView" style="display:none;">
         <h2>Join Lobby</h2>
         <div class="input-group">
-            <input id="playerName" maxlength="12" placeholder="Your Name" type="text">
-            <input id="joinCode" placeholder="Room Code" type="text">
+            <input type="text" id="playerName" placeholder="Your Name" maxlength="12">
+            <input type="text" id="joinCode" placeholder="Room Code">
         </div>
         <button onclick="joinGame()">Join</button>
-        <button class="secondary" onclick="location.reload()">Back</button>
+        <button class="secondary" onclick="backToStart()">Back</button>
     </div>
 </div>
 
@@ -645,6 +653,7 @@
     const els = {
         lobbyModal: document.getElementById('lobbyModal'),
         startView: document.getElementById('startView'),
+        createHostView: document.getElementById('createHostView'),
         hostView: document.getElementById('hostView'),
         joinView: document.getElementById('joinView'),
         roomCode: document.getElementById('roomCodeDisplay'),
@@ -746,12 +755,12 @@
         if (isDraggable && !isLocked) el.draggable = true;
 
         el.innerHTML = `
-        <div class="edge top"></div>
-        <div class="edge right"></div>
-        <div class="edge bottom"></div>
-        <div class="edge left"></div>
-        <div class="center-mark"></div>
-    `;
+            <div class="edge top"></div>
+            <div class="edge right"></div>
+            <div class="edge bottom"></div>
+            <div class="edge left"></div>
+            <div class="center-mark"></div>
+        `;
 
         updateTileVisuals(el, rotation, tile.words);
 
@@ -759,6 +768,7 @@
         el.addEventListener('click', (e) => {
             // Validation: Locked? Prep? Spectating?
             if (isLocked || currentPhase === STATE.PREP) return;
+            if (el.classList.contains('locked')) return; // Can't rotate locked tiles
             if (myPeerId === activeSpectatorId) return; // Spectator cannot rotate
 
             // Only allow rotation in Dock or Board during solving
@@ -803,8 +813,12 @@
                     e.preventDefault();
                     return false;
                 }
+                if (el.classList.contains('locked')) {
+                    e.preventDefault();
+                    return false;
+                }
                 el.classList.add('dragging');
-                e.dataTransfer.setData('text/plain', JSON.stringify({id: tile.id}));
+                e.dataTransfer.setData('text/plain', JSON.stringify({ id: tile.id }));
             });
             el.addEventListener('dragend', () => el.classList.remove('dragging'));
         }
@@ -1119,14 +1133,25 @@
      */
 
     function setupHost() {
-        myName = prompt("Enter Host Name:") || "Host";
+        els.startView.style.display = 'none';
+        els.createHostView.style.display = 'block';
+    }
+
+    function backToStart() {
+        els.createHostView.style.display = 'none';
+        els.joinView.style.display = 'none';
+        els.startView.style.display = 'block';
+    }
+
+    function createLobby() {
+        myName = document.getElementById('hostName').value.trim() || "Host";
         isHost = true;
         peer = new Peer();
 
         peer.on('open', (id) => {
             myPeerId = id;
             els.roomCode.innerText = id;
-            els.startView.style.display = 'none';
+            els.createHostView.style.display = 'none';
             els.hostView.style.display = 'block';
 
             players.push({ id: myPeerId, name: myName, status: 'waiting' });

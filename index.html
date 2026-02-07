@@ -1287,6 +1287,9 @@
 
             // Show next board button for host in multiplayer
             if (isHost && !isLocalMode) {
+                const idx = players.findIndex(p => p.id === activeSpectatorId);
+                const isLastBoard = (idx === players.length - 1);
+                els.nextBoardBtn.textContent = isLastBoard ? "End Game" : "Next Board";
                 els.nextBoardBtn.style.display = 'block';
             }
         }
@@ -1322,6 +1325,9 @@
                 els.playAgainBtn.style.display = 'block';
             } else if (isHost) {
                 // Show next board button for host in multiplayer
+                const idx = players.findIndex(p => p.id === activeSpectatorId);
+                const isLastBoard = (idx === players.length - 1);
+                els.nextBoardBtn.textContent = isLastBoard ? "End Game" : "Next Board";
                 els.nextBoardBtn.style.display = 'block';
             }
         }

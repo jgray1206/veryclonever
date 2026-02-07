@@ -1114,21 +1114,12 @@
         }
 
         function handleTileMove(data) {
-            // data: { tileId, targetSlot (or 'dock'), rotation }
             const tileEl = document.querySelector(`.tile[data-id="${data.tileId}"]`);
             if (!tileEl) return;
-
-            // 1. Update Position
-            if (data.targetSlot === 'dock') {
-                els.dock.appendChild(tileEl);
-                tileEl.style.transform = '';
-            } else {
-                const slot = document.querySelector(`.slot.${data.targetSlot}`);
-                if (slot) slot.appendChild(tileEl);
+            const targetParent = data.targetSlot === 'dock' ? els.dock : document.querySelector(`.slot.${data.targetSlot}`);
+            if (tileEl.parentElement !== targetParent && targetParent) {
+                targetParent.appendChild(tileEl);
             }
-
-            // 2. Update Rotation VISUALLY (using stored words)
-            // CRITICAL FIX: Parse the original words and apply new rotation
             const originalWords = JSON.parse(tileEl.dataset.originalWords || "[]");
             updateTileVisuals(tileEl, data.rotation, originalWords);
         }

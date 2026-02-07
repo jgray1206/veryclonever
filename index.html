@@ -34,11 +34,12 @@
             font-family: system-ui, -apple-system, sans-serif;
             overflow-x: hidden;
             height: 100%;
+            font-size: 18px;
         }
 
         /* Layout */
         header {
-            padding: 12px 16px;
+            padding: 16px 20px;
             border-bottom: 1px solid #2b3b6e;
             display: flex;
             align-items: center;
@@ -47,29 +48,29 @@
             top: 0;
             background: var(--bg);
             z-index: 100;
-            height: 60px;
+            height: 70px;
         }
 
         header h1 {
-            font-size: 1.15rem;
+            font-size: 1.5rem;
             margin: 0;
             flex-shrink: 0;
         }
 
         header .controls {
             display: flex;
-            gap: 6px;
+            gap: 8px;
             margin-left: auto;
         }
 
         main {
-            padding: 16px;
-            max-width: 1200px;
+            padding: 20px;
+            max-width: 1400px;
             margin: 0 auto;
             display: flex;
             flex-direction: column;
-            gap: 16px;
-            min-height: calc(100vh - 60px);
+            gap: 20px;
+            min-height: calc(100vh - 70px);
         }
 
         /* UI Elements */
@@ -78,10 +79,10 @@
             color: #062410;
             border: none;
             border-radius: 8px;
-            padding: 8px 16px;
+            padding: 12px 20px;
             font-weight: 600;
             cursor: pointer;
-            font-size: 0.9rem;
+            font-size: 1rem;
         }
 
         button:disabled {
@@ -99,7 +100,7 @@
         .panel {
             background: var(--panel);
             border-radius: 12px;
-            padding: 12px;
+            padding: 16px;
             text-align: center;
         }
 
@@ -108,17 +109,18 @@
             justify-content: space-between;
             align-items: center;
             background: #0f1530;
-            padding: 8px 12px;
+            padding: 12px 16px;
             border-radius: 8px;
-            margin-bottom: 10px;
-            font-size: 0.9rem;
+            margin-bottom: 12px;
+            font-size: 1.05rem;
+            font-weight: 500;
         }
 
         .instruction {
             color: var(--accent2);
             font-weight: 500;
             margin-bottom: 30px;
-            font-size: 1.1rem;
+            font-size: 1.3rem;
             text-align: center;
         }
 
@@ -271,7 +273,7 @@
 
         .edge {
             position: absolute;
-            font-size: clamp(10px, 2.5vw, 14px);
+            font-size: clamp(12px, 3vw, 17px);
             font-weight: 600;
             color: #fff;
             text-align: center;
@@ -332,7 +334,7 @@
             background: #0c1230;
             color: white;
             text-align: center;
-            font-size: 1rem;
+            font-size: 1.1rem;
             outline: none;
         }
 
@@ -416,6 +418,11 @@
         .modal h2 {
             color: var(--accent);
             margin-top: 0;
+            font-size: 1.6rem;
+        }
+
+        .modal p {
+            font-size: 1.05rem;
         }
 
         .input-group {
@@ -426,26 +433,27 @@
         }
 
         input[type="text"] {
-            padding: 12px;
+            padding: 14px;
             border-radius: 8px;
             border: 1px solid #37477c;
             background: var(--bg);
             color: white;
-            font-size: 1rem;
+            font-size: 1.05rem;
         }
 
         .player-list {
             text-align: left;
             margin: 15px 0;
             background: var(--bg);
-            padding: 10px;
+            padding: 12px;
             border-radius: 8px;
             max-height: 200px;
             overflow-y: auto;
+            font-size: 1rem;
         }
 
         .player-row {
-            padding: 8px;
+            padding: 10px;
             border-bottom: 1px solid #2b3b6e;
             display: flex;
             justify-content: space-between;
@@ -456,10 +464,11 @@
         }
 
         .badge {
-            font-size: 0.75rem;
-            padding: 2px 6px;
+            font-size: 0.85rem;
+            padding: 4px 8px;
             border-radius: 4px;
             background: #2b3b6e;
+            font-weight: 500;
         }
 
         .badge.done {
@@ -910,7 +919,7 @@
         attemptCount = 1;
 
         // Store solution
-        activeSolution = {solution: myBoard.solution};
+        activeSolution = { solution: myBoard.solution };
 
         // Create tile pool (4 real + 1 decoy)
         const realTiles = [
@@ -925,7 +934,7 @@
         // Render solving state
         renderBoard({
             clues: myBoard.clues,
-            slots: {tl: null, tr: null, bl: null, br: null},
+            slots: { tl: null, tr: null, bl: null, br: null },
             dock: pool
         }, true);
 
@@ -934,7 +943,9 @@
         els.phaseDisplay.textContent = "Solving Your Board";
         els.actionBtn.textContent = "Verify Solution";
         els.actionBtn.style.display = "block";
-        els.actionBtn.disabled = false;
+
+        // Initial check - should be disabled
+        checkAllSlotsFilled();
     }
 
     // --- PHASE 2: RESOLUTION (Team) ---
@@ -953,17 +964,19 @@
             : `Team: Solve ${spectatorName}'s clues! Drag tiles to slots.`;
 
         els.actionBtn.textContent = "Verify Solution";
-        els.actionBtn.disabled = isMe; // Spectator can't click verify
         els.actionBtn.style.display = "block";
 
         // Setup Board for everyone
-        els.waitingScreen.style.display = 'none'; // CRITICAL FIX: No overlay for spectator
+        els.waitingScreen.style.display = 'none';
 
         if (isMe) {
-            els.spectatorBanner.style.display = 'block'; // Show banner instead
+            els.spectatorBanner.style.display = 'block';
         } else {
             els.spectatorBanner.style.display = 'none';
         }
+
+        // Initial check for filled slots
+        checkAllSlotsFilled();
     }
 
     /**
@@ -972,8 +985,8 @@
     function hostStartGame() {
         if (players.length < 2) return alert("Need 2+ players.");
 
-        // Broadcast Prep Start
-        broadcast({type: 'START_PREP'});
+        // Broadcast Prep Start with player list
+        broadcast({ type: 'START_PREP', players });
         startPrepPhase(); // Host does it too
     }
 
@@ -1076,7 +1089,7 @@
             els.startView.style.display = 'none';
             els.hostView.style.display = 'block';
 
-            players.push({id: myPeerId, name: myName, status: 'waiting'});
+            players.push({ id: myPeerId, name: myName, status: 'waiting' });
             updateHostList();
         });
 
@@ -1084,18 +1097,22 @@
             connections[c.peer] = c;
             c.on('data', (data) => {
                 if (data.type === 'JOIN') {
-                    players.push({id: c.peer, name: data.name, status: 'waiting'});
+                    players.push({ id: c.peer, name: data.name, status: 'waiting' });
                     updateHostList();
-                    broadcast({type: 'PLAYER_UPDATE', players});
+                    // Send full player list to all clients
+                    broadcast({ type: 'PLAYER_UPDATE', players });
                     els.startBtn.disabled = players.length < 2;
                     els.startBtn.innerText = players.length < 2 ? "Waiting for players..." : "Start Game";
-                } else if (data.type === 'SUBMIT_BOARD') {
+                }
+                else if (data.type === 'SUBMIT_BOARD') {
                     handleBoardSubmission(c.peer, data.board);
-                } else if (data.type === 'TILE_MOVE') {
+                }
+                else if (data.type === 'TILE_MOVE') {
                     // Relay
                     broadcast(data);
                     handleTileMove(data);
-                } else if (data.type === 'VERIFY') {
+                }
+                else if (data.type === 'VERIFY') {
                     verifySolution(data.slots);
                 }
             });
@@ -1133,16 +1150,17 @@
     }
 
     function handleData(data) {
-        if (data.type === 'PLAYER_UPDATE') { /* Optional: update lobby ui */
-        } else if (data.type === 'START_PREP') {
+        if (data.type === 'PLAYER_UPDATE') {
+            players = data.players; // Update client's player list
+        }
+        else if (data.type === 'START_PREP') {
+            if (data.players) players = data.players; // Sync players at game start
             startPrepPhase();
-        } else if (data.type === 'START_ROUND') {
-            handleStartRound(data.state);
-        } else if (data.type === 'TILE_MOVE') {
-            handleTileMove(data);
-        } else if (data.type === 'ROUND_RESULT') {
-            handleRoundResult(data);
-        } else if (data.type === 'GAME_OVER') {
+        }
+        else if (data.type === 'START_ROUND') { handleStartRound(data.state); }
+        else if (data.type === 'TILE_MOVE') { handleTileMove(data); }
+        else if (data.type === 'ROUND_RESULT') { handleRoundResult(data); }
+        else if (data.type === 'GAME_OVER') {
             els.waitingScreen.style.display = 'grid';
             els.waitTitle.textContent = "Game Over!";
             els.waitMsg.textContent = `Total Team Score: ${data.score}`;
@@ -1178,14 +1196,19 @@
     }
 
     function handleRoundResult(data) {
-        els.scoreDisplay.textContent = `Score: ${data.total || totalScore}`;
+        // Update score from server
+        if (data.total !== undefined) {
+            totalScore = data.total;
+        }
+        els.scoreDisplay.textContent = `Score: ${totalScore}`;
 
         if (data.result === 'PERFECT') {
             els.instruction.textContent = "Perfect! +6 Points!";
             els.instruction.style.color = 'var(--ok)';
             document.querySelectorAll('.tile').forEach(t => t.classList.add('locked'));
             els.actionBtn.style.display = 'none';
-        } else if (data.result === 'TRY_AGAIN') {
+        }
+        else if (data.result === 'TRY_AGAIN') {
             els.instruction.textContent = "Incorrect. Wrong tiles removed. 2nd Attempt!";
             els.instruction.style.color = 'var(--danger)';
             attemptCount = 2;
@@ -1205,7 +1228,8 @@
                     if (tile) tile.classList.add('locked');
                 }
             });
-        } else if (data.result === 'DONE') {
+        }
+        else if (data.result === 'DONE') {
             els.instruction.textContent = `Round Done! +${data.score} Points.`;
             document.querySelectorAll('.tile').forEach(t => t.classList.add('locked'));
             els.actionBtn.style.display = 'none';
@@ -1356,8 +1380,23 @@
             } else {
                 conn.send(moveData);
             }
+
+            // Check if all slots are filled after move
+            checkAllSlotsFilled();
         });
     });
+
+    function checkAllSlotsFilled() {
+        const slots = ['tl', 'tr', 'bl', 'br'];
+        const allFilled = slots.every(slot => {
+            const slotEl = document.querySelector(`.slot.${slot}`);
+            return slotEl.querySelector('.tile') !== null;
+        });
+
+        if (currentPhase === STATE.SOLVING) {
+            els.actionBtn.disabled = !allFilled || (myPeerId === activeSpectatorId);
+        }
+    }
 
     /**
      * UI HELPERS

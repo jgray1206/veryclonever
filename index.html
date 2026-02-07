@@ -565,10 +565,10 @@
     <div class="modal-content" id="joinView" style="display:none;">
         <h2>Join Lobby</h2>
         <div class="input-group">
-            <input id="playerName" maxlength="12" placeholder="Your Name" type="text">
-            <input id="joinCode" placeholder="Room Code" type="text">
+            <input type="text" id="playerName" placeholder="Your Name" maxlength="30">
+            <input type="text" id="joinCode" placeholder="Room Code">
         </div>
-        <button onclick="joinGame()">Join</button>
+        <button id="joinBtn" onclick="joinGame()">Join</button>
         <button class="secondary" onclick="backToStart()">Back</button>
     </div>
 </div>
@@ -589,10 +589,6 @@
         <div class="status-bar" style="width: 100%; max-width: 600px;">
             <span id="phaseDisplay">Waiting...</span>
             <span id="scoreDisplay">Score: 0</span>
-        </div>
-
-        <div class="spectator-banner" id="spectatorBanner">
-            👀 YOU ARE THE SPECTATOR. SILENCE PLEASE!
         </div>
 
         <div class="instruction" id="instruction"></div>
@@ -719,6 +715,7 @@
         roomCode: document.getElementById('roomCodeDisplay'),
         hostList: document.getElementById('hostPlayerList'),
         startBtn: document.getElementById('startBtn'),
+        joinBtn: document.getElementById('joinBtn'),
         board: document.getElementById('board'),
         dock: document.getElementById('dock'),
         actionBtn: document.getElementById('actionBtn'),
@@ -730,23 +727,50 @@
         waitMsg: document.getElementById('waitMsg'),
         scoreResult: document.getElementById('scoreResult'),
         phaseDisplay: document.getElementById('phaseDisplay'),
-        scoreDisplay: document.getElementById('scoreDisplay'),
-        spectatorBanner: document.getElementById('spectatorBanner')
+        scoreDisplay: document.getElementById('scoreDisplay')
     };
 
     /**
      * UTILS
      */
     function shuffle(arr) {
-        return arr.sort(() => Math.random() - 0.5);
+        const array = [...arr];
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+        return array;
     }
 
     function getRandomWords(count) {
         return shuffle([...WORDS]).slice(0, count);
     }
 
-    function generateTile(id) {
-        return {id: id, words: getRandomWords(4)}; // Top, Right, Bottom, Left
+    function generateTile(id, existingTiles = []) {
+        // Collect all words already used in existing tiles
+        const usedWords = new Set();
+        existingTiles.forEach(tile => {
+            if (tile.words) {
+                tile.words.forEach(word => usedWords.add(word));
+            }
+        });
+
+        // Pick 4 unique words not in usedWords
+        const availableWords = WORDS.filter(w => !usedWords.has(w));
+        const shuffled = shuffle(availableWords);
+        return { id: id, words: shuffled.slice(0, 4) };
+    }
+
+    function generateBoardTiles() {
+        // Need 16 unique words for 4 tiles (4 words each)
+        const allWords = getRandomWords(16);
+
+        return [
+            { id: 't1', words: allWords.slice(0, 4) },
+            { id: 't2', words: allWords.slice(4, 8) },
+            { id: 't3', words: allWords.slice(8, 12) },
+            { id: 't4', words: allWords.slice(12, 16) }
+        ];
     }
 
     function getScoreResult(playerCount, score) {
@@ -1021,24 +1045,20 @@
         els.lobbyModal.style.display = 'none';
         els.instruction.textContent = "Write in your 4 clues.";
         els.instruction.style.color = 'var(--accent2)';
-        els.actionBtn.textContent = "Done - Submit Clues";
+        els.actionBtn.textContent = "Submit Clues";
         els.actionBtn.style.display = "block";
         els.actionBtn.disabled = true;
+        els.scoreResult.style.display = 'none';
         els.waitingScreen.style.display = 'none';
-        els.spectatorBanner.style.display = 'none';
         els.nextBoardBtn.style.display = 'none';
         els.playAgainBtn.style.display = 'none';
         els.phaseDisplay.textContent = isLocalMode ? "Prep Phase" : "Writing Clues...";
 
         // Generate my local board
-        const t1 = generateTile('t1');
-        const t2 = generateTile('t2');
-        const t3 = generateTile('t3');
-        const t4 = generateTile('t4');
-
+        const tiles = generateBoardTiles();
         const slots = ['tl', 'tr', 'bl', 'br'];
-        const tiles = [t1, t2, t3, t4];
-        shuffle(tiles);
+        shuffle(slots); // Randomize slot assignment
+
 
         myBoard = {
             solution: {},
@@ -1125,7 +1145,7 @@
             myBoard.solution.bl.tile,
             myBoard.solution.br.tile
         ];
-        const decoy = generateTile('decoy');
+        const decoy = generateTile('decoy', realTiles);
         const pool = shuffle([...realTiles, decoy]);
 
         // Render solving state
@@ -1165,12 +1185,6 @@
 
         // Setup Board for everyone
         els.waitingScreen.style.display = 'none';
-
-        if (isMe) {
-            els.spectatorBanner.style.display = 'block';
-        } else {
-            els.spectatorBanner.style.display = 'none';
-        }
 
         // Initial check for filled slots
         checkAllSlotsFilled();
@@ -1220,7 +1234,7 @@
             boardData.solution.bl.tile,
             boardData.solution.br.tile
         ];
-        const decoy = generateTile('decoy');
+        const decoy = generateTile('decoy', realTiles);
         const pool = shuffle([...realTiles, decoy]);
 
         const roundState = {
@@ -1283,6 +1297,12 @@
     }
 
     function backToStart() {
+        // Re-enable join button when going back
+        if (els.joinBtn) {
+            els.joinBtn.disabled = false;
+            els.joinBtn.textContent = "Join";
+        }
+
         els.createHostView.style.display = 'none';
         els.joinView.style.display = 'none';
         els.startView.style.display = 'block';
@@ -1361,9 +1381,25 @@
     }
 
     function joinGame() {
-        myName = document.getElementById('playerName').value || "Guest";
-        const code = document.getElementById('joinCode').value;
-        if (!code) return alert("Enter code");
+        // Prevent double-click
+        if (els.joinBtn.disabled) return;
+
+        myName = document.getElementById('playerName').value.trim();
+        if (!myName) {
+            alert("Please enter a name");
+            return;
+        }
+
+        const code = document.getElementById('joinCode').value.trim();
+
+        if (!code) {
+            alert("Please enter a room code");
+            return;
+        }
+
+        // Disable button immediately
+        els.joinBtn.disabled = true;
+        els.joinBtn.textContent = "Connecting...";
 
         peer = new Peer();
         peer.on('open', (id) => {
@@ -1373,10 +1409,22 @@
             conn.on('open', () => {
                 els.lobbyModal.style.display = 'none';
                 showWaiting("Connected", "Waiting for host to start...");
-                conn.send({type: 'JOIN', name: myName});
+                conn.send({ type: 'JOIN', name: myName });
+            });
+
+            conn.on('error', (err) => {
+                alert('Failed to connect. Check the room code.');
+                els.joinBtn.disabled = false;
+                els.joinBtn.textContent = "Join";
             });
 
             conn.on('data', handleData);
+        });
+
+        peer.on('error', (err) => {
+            alert('Connection error. Please try again.');
+            els.joinBtn.disabled = false;
+            els.joinBtn.textContent = "Join";
         });
     }
 
@@ -1409,7 +1457,6 @@
             els.scoreResult.textContent = data.result || '';
             els.actionBtn.style.display = 'none';
             els.nextBoardBtn.style.display = 'none';
-
             // Show play again button (only for host in multiplayer)
             if (isLocalMode || isHost) {
                 els.playAgainBtn.style.display = 'block';
@@ -1463,6 +1510,10 @@
                 const isLastBoard = (idx === players.length - 1);
                 els.nextBoardBtn.textContent = isLastBoard ? "End Game" : "Next Board";
                 els.nextBoardBtn.style.display = 'block';
+            } else if (!isLocalMode) {
+                // Show waiting message for non-host players
+                els.instruction.textContent = "Waiting for host to continue...";
+                els.instruction.style.color = 'var(--muted)';
             }
         }
         else if (data.result === 'TRY_AGAIN') {
@@ -1532,6 +1583,10 @@
                 const isLastBoard = (idx === players.length - 1);
                 els.nextBoardBtn.textContent = isLastBoard ? "End Game" : "Next Board";
                 els.nextBoardBtn.style.display = 'block';
+            } else {
+                // Show waiting message for non-host players
+                els.instruction.textContent = "Waiting for host to start next board...";
+                els.instruction.style.color = 'var(--muted)';
             }
         }
     }

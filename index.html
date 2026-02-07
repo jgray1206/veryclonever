@@ -119,6 +119,34 @@
             font-weight: 500;
             margin-bottom: 8px;
             font-size: 1.1rem;
+            text-align: center;
+        }
+
+        /* Spectator Warning Banner */
+        .spectator-banner {
+            display: none;
+            background: #ff9800;
+            color: #000;
+            font-weight: bold;
+            text-align: center;
+            padding: 8px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.8;
+            }
+
+            100% {
+                opacity: 1;
+            }
         }
 
         /* Game Board Area */
@@ -196,6 +224,7 @@
             touch-action: none;
             z-index: 10;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            transition: transform 0.2s, top 0.2s, left 0.2s;
         }
 
         .tile.locked {
@@ -205,6 +234,29 @@
 
         .tile.dragging {
             opacity: 0.6;
+        }
+
+        .tile.shake {
+            animation: shake 0.5s;
+            border-color: var(--danger);
+        }
+
+        @keyframes shake {
+            0% {
+                transform: translateX(0);
+            }
+
+            25% {
+                transform: translateX(-5px);
+            }
+
+            75% {
+                transform: translateX(5px);
+            }
+
+            100% {
+                transform: translateX(0);
+            }
         }
 
         .center-mark {
@@ -226,6 +278,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            pointer-events: none;
         }
 
         .edge.top {
@@ -495,6 +548,10 @@
                 <span id="scoreDisplay">Score: 0</span>
             </div>
 
+            <div id="spectatorBanner" class="spectator-banner">
+                👀 YOU ARE THE SPECTATOR. SILENCE PLEASE!
+            </div>
+
             <div class="instruction" id="instruction"></div>
 
             <div class="board-wrapper">
@@ -546,27 +603,27 @@
          */
         const STATE = {
             LOBBY: 'LOBBY',
-            PREP: 'PREP',        // Everyone writing clues independently
-            WAITING: 'WAITING',  // Waiting for others to finish prep
-            SOLVING: 'SOLVING',  // Group solving one person's board
-            SCORING: 'SCORING',  // Viewing results
+            PREP: 'PREP',
+            WAITING: 'WAITING',
+            SOLVING: 'SOLVING',
+            SCORING: 'SCORING',
             END: 'END'
         };
 
         let myPeerId = null;
         let peer = null;
-        let conn = null; // For client: connection to host
-        let connections = {}; // For host: map of peerId -> conn
+        let conn = null; // Client -> Host
+        let connections = {}; // Host -> Clients
         let isHost = false;
         let myName = "Player";
-        let players = []; // Array of {id, name, status}
+        let players = [];
 
         // Game Data
         let currentPhase = STATE.LOBBY;
-        let myBoard = null; // My private board (tiles, rotation, clues)
-        let hostLobbyState = {}; // Host: stores everyone's submitted boards { peerId: boardData }
-        let activeSpectatorId = null; // Who is being judged right now
-        let activeSolution = null; // The solution being solved currently
+        let myBoard = null;
+        let hostLobbyState = {};
+        let activeSpectatorId = null;
+        let activeSolution = null;
         let attemptCount = 1;
         let totalScore = 0;
 
@@ -587,7 +644,8 @@
             waitTitle: document.getElementById('waitTitle'),
             waitMsg: document.getElementById('waitMsg'),
             phaseDisplay: document.getElementById('phaseDisplay'),
-            scoreDisplay: document.getElementById('scoreDisplay')
+            scoreDisplay: document.getElementById('scoreDisplay'),
+            spectatorBanner: document.getElementById('spectatorBanner')
         };
 
         /**
@@ -610,7 +668,7 @@
          */
         function getRotatedWords(words, rotation) {
             // rotation 0: [0,1,2,3]
-            // rotation 1: [3,0,1,2] -> Top is previous left (index 3)
+            // rotation 1: [3,0,1,2]
             const w = [...words];
             if (rotation === 0) return w;
             if (rotation === 1) return [w[3], w[0], w[1], w[2]];
@@ -619,40 +677,70 @@
             return w;
         }
 
+        function updateTileVisuals(el, rotation, originalWords) {
+            if (!originalWords) return;
+            const words = getRotatedWords(originalWords, rotation);
+            el.querySelector('.top').textContent = words[0];
+            el.querySelector('.right').textContent = words[1];
+            el.querySelector('.bottom').textContent = words[2];
+            el.querySelector('.left').textContent = words[3];
+            el.dataset.rot = rotation;
+        }
+
         function createTileEl(tile, rotation = 0, isDraggable = true, isLocked = false) {
             const el = document.createElement('div');
             el.className = `tile ${isLocked ? 'locked' : ''}`;
             el.dataset.id = tile.id;
             el.dataset.rot = rotation;
+            // CRITICAL FIX: Store original words for rotation logic
+            el.dataset.originalWords = JSON.stringify(tile.words);
+
             if (isDraggable && !isLocked) el.draggable = true;
 
-            const words = getRotatedWords(tile.words, rotation);
-
             el.innerHTML = `
-        <div class="edge top">${words[0]}</div>
-        <div class="edge right">${words[1]}</div>
-        <div class="edge bottom">${words[2]}</div>
-        <div class="edge left">${words[3]}</div>
+        <div class="edge top"></div>
+        <div class="edge right"></div>
+        <div class="edge bottom"></div>
+        <div class="edge left"></div>
         <div class="center-mark"></div>
     `;
 
+            updateTileVisuals(el, rotation, tile.words);
+
             // Rotation Logic (Click)
             el.addEventListener('click', (e) => {
-                if (isLocked || currentPhase === STATE.PREP) return; // In Prep, tiles are fixed
+                // Validation: Locked? Prep? Spectating?
+                if (isLocked || currentPhase === STATE.PREP) return;
+                if (myPeerId === activeSpectatorId) return; // Spectator cannot rotate
+
                 // Only allow rotation in Dock or Board during solving
                 if (currentPhase === STATE.SOLVING && isDraggable) {
                     let r = parseInt(el.dataset.rot);
                     r = (r + 1) % 4;
-                    el.dataset.rot = r;
-                    const newW = getRotatedWords(tile.words, r);
-                    el.querySelector('.top').textContent = newW[0];
-                    el.querySelector('.right').textContent = newW[1];
-                    el.querySelector('.bottom').textContent = newW[2];
-                    el.querySelector('.left').textContent = newW[3];
 
-                    // If on board, trigger update
-                    if (el.parentElement.classList.contains('slot')) {
-                        sendPlacementUpdate();
+                    // Find parent to define slot
+                    const parent = el.parentElement;
+                    let targetSlot = 'dock';
+                    if (parent.classList.contains('slot')) {
+                        if (parent.classList.contains('tl')) targetSlot = 'tl';
+                        if (parent.classList.contains('tr')) targetSlot = 'tr';
+                        if (parent.classList.contains('bl')) targetSlot = 'bl';
+                        if (parent.classList.contains('br')) targetSlot = 'br';
+                    }
+
+                    // Send Move Immediately
+                    const moveData = {
+                        type: 'TILE_MOVE',
+                        tileId: tile.id,
+                        targetSlot: targetSlot,
+                        rotation: r
+                    };
+
+                    if (isHost) {
+                        handleTileMove(moveData); // Update local
+                        broadcast(moveData); // Send to all
+                    } else {
+                        conn.send(moveData); // Send to host
                     }
                 }
             });
@@ -660,6 +748,10 @@
             // Drag Logic
             if (isDraggable && !isLocked) {
                 el.addEventListener('dragstart', (e) => {
+                    if (myPeerId === activeSpectatorId) {
+                        e.preventDefault();
+                        return false;
+                    }
                     el.classList.add('dragging');
                     e.dataTransfer.setData('text/plain', JSON.stringify({ id: tile.id }));
                 });
@@ -730,6 +822,7 @@
             els.actionBtn.style.display = "block";
             els.actionBtn.disabled = true;
             els.waitingScreen.style.display = 'none';
+            els.spectatorBanner.style.display = 'none';
 
             // Generate my local board
             const t1 = generateTile('t1');
@@ -737,7 +830,6 @@
             const t3 = generateTile('t3');
             const t4 = generateTile('t4');
 
-            // Assign random positions and rotations for the "Answer Key"
             const slots = ['tl', 'tr', 'bl', 'br'];
             const tiles = [t1, t2, t3, t4];
             shuffle(tiles);
@@ -789,8 +881,6 @@
                 else conn.send(payload);
             }
             else if (currentPhase === STATE.SOLVING) {
-                // Attempt to solve (Verify button)
-                // Only active player or host usually, but let's allow anyone to trigger check
                 sendVerifyRequest();
             }
         });
@@ -807,7 +897,7 @@
 
             els.phaseDisplay.textContent = `Solving ${spectatorName}'s Board`;
             els.instruction.textContent = isMe
-                ? "You are the Spectator. Do not speak!"
+                ? "Please remain silent while they solve."
                 : `Team: Solve ${spectatorName}'s clues! Drag tiles to slots.`;
 
             els.actionBtn.textContent = "Verify Solution";
@@ -815,12 +905,12 @@
             els.actionBtn.style.display = "block";
 
             // Setup Board for everyone
-            // The Host sends the specific layout: Clues + 5 Tiles (4 real + 1 decoy) in dock
+            els.waitingScreen.style.display = 'none'; // CRITICAL FIX: No overlay for spectator
+
             if (isMe) {
-                showWaiting("Spectating", "The team is solving your board. Stay silent!");
-                // Spectator sees the board being updated live, but can't interact
+                els.spectatorBanner.style.display = 'block'; // Show banner instead
             } else {
-                els.waitingScreen.style.display = 'none';
+                els.spectatorBanner.style.display = 'none';
             }
         }
 
@@ -838,7 +928,7 @@
         function handleBoardSubmission(pid, board) {
             hostLobbyState[pid] = board;
 
-            // Mark player as ready in UI if we wanted
+            // Mark player as ready in UI
             const p = players.find(x => x.id === pid);
             if (p) p.status = 'done';
             updateHostList();
@@ -846,7 +936,6 @@
             // Check if all ready
             if (Object.keys(hostLobbyState).length === players.length) {
                 // All boards received. Start first resolution round.
-                // Pick random order
                 players = shuffle(players);
                 setTimeout(() => hostNextRound(0), 1000);
             }
@@ -854,16 +943,14 @@
 
         function hostNextRound(playerIndex) {
             if (playerIndex >= players.length) {
-                // Game Over
                 broadcast({ type: 'GAME_OVER', score: totalScore });
                 return;
             }
 
             const spectator = players[playerIndex];
             const boardData = hostLobbyState[spectator.id];
-            activeSolution = boardData; // Save for validation
+            activeSolution = boardData;
 
-            // Create the game set (4 real tiles + 1 decoy)
             const realTiles = [
                 boardData.solution.tl.tile,
                 boardData.solution.tr.tile,
@@ -883,13 +970,10 @@
             };
 
             broadcast({ type: 'START_ROUND', state: roundState });
-
-            // Also apply locally for Host
             handleStartRound(roundState);
         }
 
         function verifySolution(currentSlots) {
-            // currentSlots: { tl: {tileId, rot}, ... }
             const sol = activeSolution.solution;
             let correctCount = 0;
             const feedback = { tl: false, tr: false, bl: false, br: false };
@@ -905,21 +989,17 @@
 
             if (attemptCount === 1) {
                 if (correctCount === 4) {
-                    // Perfect!
                     totalScore += 6;
                     broadcast({ type: 'ROUND_RESULT', result: 'PERFECT', score: 6, feedback, total: totalScore });
                     setTimeout(() => {
-                        // Determine next index from current active player
                         const idx = players.findIndex(p => p.id === activeSpectatorId);
                         hostNextRound(idx + 1);
                     }, 3000);
                 } else {
-                    // Fail 1st attempt. Remove wrong tiles.
                     broadcast({ type: 'ROUND_RESULT', result: 'TRY_AGAIN', feedback });
                     attemptCount = 2;
                 }
             } else {
-                // 2nd Attempt
                 totalScore += correctCount;
                 broadcast({ type: 'ROUND_RESULT', result: 'DONE', score: correctCount, feedback, total: totalScore });
                 setTimeout(() => {
@@ -954,9 +1034,7 @@
                     if (data.type === 'JOIN') {
                         players.push({ id: c.peer, name: data.name, status: 'waiting' });
                         updateHostList();
-                        // Send current player list to everyone
                         broadcast({ type: 'PLAYER_UPDATE', players });
-                        // Allow start if > 1
                         els.startBtn.disabled = players.length < 2;
                         els.startBtn.innerText = players.length < 2 ? "Waiting for players..." : "Start Game";
                     }
@@ -964,9 +1042,9 @@
                         handleBoardSubmission(c.peer, data.board);
                     }
                     else if (data.type === 'TILE_MOVE') {
-                        // Relay tile moves to everyone
-                        broadcast(data); // Echo back
-                        handleTileMove(data); // Update local host view
+                        // Relay
+                        broadcast(data);
+                        handleTileMove(data);
                     }
                     else if (data.type === 'VERIFY') {
                         verifySolution(data.slots);
@@ -1002,25 +1080,15 @@
 
         function broadcast(msg) {
             Object.values(connections).forEach(c => c.send(msg));
-            if (isHost) handleData(msg); // Process locally too
+            if (isHost) handleData(msg);
         }
 
         function handleData(data) {
-            if (data.type === 'PLAYER_UPDATE') {
-                // Client lobby update (optional visual)
-            }
-            else if (data.type === 'START_PREP') {
-                startPrepPhase();
-            }
-            else if (data.type === 'START_ROUND') {
-                handleStartRound(data.state);
-            }
-            else if (data.type === 'TILE_MOVE') {
-                handleTileMove(data);
-            }
-            else if (data.type === 'ROUND_RESULT') {
-                handleRoundResult(data);
-            }
+            if (data.type === 'PLAYER_UPDATE') { /* Optional: update lobby ui */ }
+            else if (data.type === 'START_PREP') { startPrepPhase(); }
+            else if (data.type === 'START_ROUND') { handleStartRound(data.state); }
+            else if (data.type === 'TILE_MOVE') { handleTileMove(data); }
+            else if (data.type === 'ROUND_RESULT') { handleRoundResult(data); }
             else if (data.type === 'GAME_OVER') {
                 els.waitingScreen.style.display = 'grid';
                 els.waitTitle.textContent = "Game Over!";
@@ -1036,65 +1104,33 @@
             attemptCount = state.attempt;
             currentPhase = STATE.SOLVING;
 
-            // Reconstruct tiles from data
-            const dockTiles = state.dock;
-
-            // Render Board
             renderBoard({
                 clues: state.clues,
                 slots: { tl: null, tr: null, bl: null, br: null },
-                dock: dockTiles
-            }, myPeerId !== activeSpectatorId); // Interactive if not spectator
+                dock: state.dock
+            }, true);
 
             startResolutionRound(activeSpectatorId, state.attempt);
         }
 
         function handleTileMove(data) {
             // data: { tileId, targetSlot (or 'dock'), rotation }
-            // Visual update only
             const tileEl = document.querySelector(`.tile[data-id="${data.tileId}"]`);
             if (!tileEl) return;
 
-            // Update rotation
-            tileEl.dataset.rot = data.rotation;
-            const w = getRotatedWords(getRandomWords(4), data.rotation); // Hack: we need original words. 
-            // In a real app we'd look up the tile object. For now, rely on DOM or simple redraw.
-            // Better: Re-render the specific tile text
-            // Actually, simply moving the DOM node preserves the inner text, we just need to update edges based on rot
-            // But since clients might not have the tile definitions locally in the same way, 
-            // we should trust the DOM content if we aren't careful.
-            // Simplification: Just move the DOM node.
-
-            // To handle rotation text update on remote clients:
-            // We need the tile's original word list. 
-            // Optimized: We won't re-render text here to save complexity, assuming rotation clicks handled logic.
-            // The `createTileEl` rotation logic updates DOM. We need to sync that.
-
-            // Let's just re-parent the element
+            // 1. Update Position
             if (data.targetSlot === 'dock') {
                 els.dock.appendChild(tileEl);
-                tileEl.style.transform = ''; // reset drag styles
+                tileEl.style.transform = '';
             } else {
                 const slot = document.querySelector(`.slot.${data.targetSlot}`);
                 if (slot) slot.appendChild(tileEl);
             }
 
-            // Sync Rotation UI
-            if (tileEl) {
-                // Trigger a click simulation or manually update text?
-                // Let's manually update classes/text if needed.
-                // For this demo, let's assume the DOM state is consistent enough or rely on the host validating.
-                // We DO need to update the rotation attribute
-                tileEl.dataset.rot = data.rotation;
-                // Visual refresh of rotation logic would require stored tile data.
-                // For this snippet, we will assume players see rotation update on next interaction or we skip visual rotation sync for text (it rotates locally).
-                // FIX: We must update text.
-                // We don't have the tile's source words easily accessible here without a lookup.
-                // To fix this cleanly: clients should have received full tile objects in START_ROUND.
-                // They did! We just need to find it.
-                // But `handleTileMove` doesn't pass the words.
-                // Let's just trust the DOM move for now.
-            }
+            // 2. Update Rotation VISUALLY (using stored words)
+            // CRITICAL FIX: Parse the original words and apply new rotation
+            const originalWords = JSON.parse(tileEl.dataset.originalWords || "[]");
+            updateTileVisuals(tileEl, data.rotation, originalWords);
         }
 
         function handleRoundResult(data) {
@@ -1110,18 +1146,16 @@
                 els.instruction.style.color = 'var(--danger)';
                 attemptCount = 2;
 
-                // Process feedback: remove wrong tiles
                 Object.entries(data.feedback).forEach(([slotKey, isCorrect]) => {
                     if (!isCorrect) {
                         const slot = document.querySelector(`.slot.${slotKey}`);
                         const tile = slot.querySelector('.tile');
                         if (tile) {
-                            els.dock.appendChild(tile); // Return to dock
+                            els.dock.appendChild(tile);
                             tile.classList.add('shake');
                             setTimeout(() => tile.classList.remove('shake'), 500);
                         }
                     } else {
-                        // Lock correct ones
                         const slot = document.querySelector(`.slot.${slotKey}`);
                         const tile = slot.querySelector('.tile');
                         if (tile) tile.classList.add('locked');
@@ -1134,14 +1168,7 @@
             }
         }
 
-        // Sending Moves
-        function sendPlacementUpdate() {
-            if (isHost) return; // Host updates locally immediately? No, host should wait for network consistency or handle separated.
-            // Actually, let's just use the dragging events.
-        }
-
         function sendVerifyRequest() {
-            // Gather current board state
             const slots = {};
             ['tl', 'tr', 'bl', 'br'].forEach(k => {
                 const el = document.querySelector(`.slot.${k} .tile`);
@@ -1156,7 +1183,6 @@
         }
 
         // DRAG AND DROP HANDLERS (Global)
-        // We need to capture drops to send TILE_MOVE
         const slotsAndDock = [...document.querySelectorAll('.slot'), els.dock];
 
         slotsAndDock.forEach(container => {
@@ -1169,7 +1195,6 @@
                 e.preventDefault();
                 container.classList.remove('highlight');
 
-                // Security: Spectator cannot drop
                 if (currentPhase === STATE.SOLVING && myPeerId === activeSpectatorId) return;
                 if (currentPhase === STATE.PREP) return;
 
@@ -1181,7 +1206,6 @@
                 if (tile && !tile.classList.contains('locked')) {
                     container.appendChild(tile);
 
-                    // Identify target
                     let target = 'dock';
                     if (container.classList.contains('slot')) {
                         if (container.classList.contains('tl')) target = 'tl';
@@ -1190,7 +1214,6 @@
                         if (container.classList.contains('br')) target = 'br';
                     }
 
-                    // Broadcast Move
                     const moveData = {
                         type: 'TILE_MOVE',
                         tileId: id,
@@ -1198,7 +1221,10 @@
                         rotation: parseInt(tile.dataset.rot)
                     };
 
-                    if (isHost) broadcast(moveData);
+                    if (isHost) {
+                        broadcast(moveData);
+                        handleTileMove(moveData);
+                    }
                     else conn.send(moveData);
                 }
             });

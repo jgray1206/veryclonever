@@ -4,7 +4,8 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-    <title>So Clover</title>
+    <title>So Clover - Multiplayer</title>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         :root {
             --bg: #0c1222;
@@ -91,6 +92,125 @@
 
         button:active:not(:disabled) {
             transform: scale(0.98);
+        }
+
+        /* Lobby UI */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 16px;
+        }
+
+        .modal {
+            background: var(--panel);
+            border-radius: 16px;
+            padding: 24px;
+            max-width: 500px;
+            width: 100%;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+        }
+
+        .modal h2 {
+            margin: 0 0 16px 0;
+            font-size: 1.5rem;
+        }
+
+        .modal input {
+            width: 100%;
+            background: var(--bg);
+            color: var(--text);
+            border: 1px solid #37477c;
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 1rem;
+            margin-bottom: 12px;
+        }
+
+        .modal input:focus {
+            outline: none;
+            border-color: var(--accent2);
+        }
+
+        .modal .button-group {
+            display: flex;
+            gap: 8px;
+            margin-top: 16px;
+        }
+
+        .modal .button-group button {
+            flex: 1;
+        }
+
+        .code-display {
+            background: var(--bg);
+            border: 2px solid var(--accent);
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+            margin: 16px 0;
+        }
+
+        .code-display .code {
+            font-size: 2rem;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            color: var(--accent);
+            font-family: ui-monospace, monospace;
+        }
+
+        .code-display .label {
+            font-size: 0.9rem;
+            color: var(--muted);
+            margin-top: 8px;
+        }
+
+        .player-list {
+            background: var(--bg);
+            border: 1px solid #37477c;
+            border-radius: 8px;
+            padding: 12px;
+            margin: 16px 0;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .player-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px;
+            margin-bottom: 4px;
+            background: var(--panel);
+            border-radius: 6px;
+        }
+
+        .player-item.ready {
+            border-left: 3px solid var(--ok);
+        }
+
+        .player-item.active {
+            border-left: 3px solid var(--accent);
+        }
+
+        .player-item .name {
+            flex: 1;
+        }
+
+        .player-item .status {
+            font-size: 0.8rem;
+            color: var(--muted);
+        }
+
+        .player-item .status.ready {
+            color: var(--ok);
         }
 
         /* Mobile-first layout */
@@ -487,6 +607,20 @@
             line-height: 1.4;
         }
 
+        .lobby-info {
+            background: var(--bg);
+            border: 1px solid #37477c;
+            border-radius: 8px;
+            padding: 10px;
+            font-size: 0.85rem;
+        }
+
+        .lobby-info .room-code {
+            font-family: ui-monospace, monospace;
+            color: var(--accent);
+            font-weight: 600;
+        }
+
         /* Tablet landscape and up */
         @media (min-width: 768px) {
             main {
@@ -569,17 +703,69 @@
     <header>
         <h1>🍀 So Clover</h1>
         <div class="controls">
-            <button id="newRoundBtn">New Round</button>
+            <button id="lobbyBtn">Join/Create Lobby</button>
+            <button id="readyBtn" style="display:none;" disabled>Ready</button>
             <button id="doneBtn" disabled>Done</button>
             <button id="scoreBtn" disabled>Score</button>
         </div>
     </header>
+
+    <!-- Lobby Modal -->
+    <div id="lobbyModal" class="modal-overlay" style="display:none;">
+        <div class="modal">
+            <div id="lobbyStart">
+                <h2>Multiplayer Lobby</h2>
+                <div class="button-group">
+                    <button onclick="createLobby()">Create Lobby</button>
+                    <button onclick="showJoinForm()">Join Lobby</button>
+                </div>
+            </div>
+
+            <div id="lobbyCreate" style="display:none;">
+                <h2>Create Lobby</h2>
+                <label style="color:var(--muted); font-size:0.9rem; display:block; margin-bottom:8px;">Your Name</label>
+                <input type="text" id="hostName" placeholder="Enter your name" maxlength="20">
+                <div id="lobbyCodeDisplay" style="display:none;">
+                    <div class="code-display">
+                        <div class="code" id="roomCode"></div>
+                        <div class="label">Share this code with friends</div>
+                    </div>
+                    <div class="player-list" id="playerList"></div>
+                    <button onclick="startGame()" id="startGameBtn" disabled>Start Game (min 2 players)</button>
+                </div>
+                <div class="button-group" id="createLobbyButtons">
+                    <button onclick="showLobbyStart()">Back</button>
+                    <button onclick="generateLobby()">Generate Code</button>
+                </div>
+            </div>
+
+            <div id="lobbyJoin" style="display:none;">
+                <h2>Join Lobby</h2>
+                <label style="color:var(--muted); font-size:0.9rem; display:block; margin-bottom:8px;">Your Name</label>
+                <input type="text" id="joinName" placeholder="Enter your name" maxlength="20">
+                <label
+                    style="color:var(--muted); font-size:0.9rem; display:block; margin-bottom:8px; margin-top:12px;">Lobby
+                    Code</label>
+                <input type="text" id="joinCode" placeholder="Enter lobby code" maxlength="10">
+                <div class="button-group">
+                    <button onclick="showLobbyStart()">Back</button>
+                    <button onclick="joinLobby()">Join</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <main>
         <!-- Compact help/info panel -->
         <section class="panel">
             <span id="phaseBadge" class="phase-badge">Idle</span>
             <div class="log" id="log"></div>
+
+            <div id="lobbyInfoPanel" style="display:none;" class="lobby-info">
+                <div>Room: <span class="room-code" id="displayRoomCode"></span></div>
+                <div>Players: <span id="displayPlayerCount">0</span></div>
+                <div>Current turn: <span id="displayCurrentPlayer">—</span></div>
+            </div>
 
             <div class="scorebox">
                 <div>Attempt: <span id="attemptLabel">—</span></div>
@@ -831,6 +1017,20 @@
             "key", "lock", "door", "window", "wall", "floor", "ceiling", "roof", "brick", "stone", "tile", "paint", "picture", "photo", "frame", "mirror", "clock", "watch", "calendar", "book", "notebook", "paper", "pencil", "pen", "marker", "crayon", "ruler", "glue", "tape", "key", "lock", "door", "window", "wall", "floor", "ceiling", "roof", "brick", "stone", "tile", "paint", "picture", "photo", "frame", "mirror", "clock", "watch", "calendar", "book", "notebook", "paper", "pencil", "pen", "marker", "crayon", "ruler", "glue", "tape", "backpack", "bag", "wallet", "purse", "coin", "cash", "ticket", "receipt", "card", "stamp", "sticker"];
 
         /* ---------------------------
+        Multiplayer State
+        ----------------------------*/
+        let peer = null;
+        let hostConnection = null; // For clients
+        let clientConnections = {}; // For host: peerId -> connection
+        let myPeerId = null;
+        let myName = "";
+        let isHost = false;
+        let roomCode = "";
+        let playerOrder = []; // [{id, name, ready}]
+        let currentPlayerIndex = 0;
+        let myReadyState = false;
+
+        /* ---------------------------
         State
         ----------------------------*/
         const state = {
@@ -839,7 +1039,8 @@
             solution: { tl: null, tr: null, bl: null, br: null },
             placed: { tl: null, tr: null, bl: null, br: null },
             attempt: 0,
-            roundScore: 0
+            roundScore: 0,
+            clues: { top: "", right: "", bottom: "", left: "" }
         };
 
         function log(msg) { document.getElementById("log").textContent = msg; }
@@ -904,6 +1105,7 @@
                     const parentSlotName = el.parentElement?.dataset?.slot;
                     if (parentSlotName) {
                         state.placed[parentSlotName] = { tileId: el.dataset.id, rotation: r };
+                        broadcastPlacement();
                     }
                 });
             }
@@ -961,6 +1163,7 @@
                     rotation: parseInt(tileEl.dataset.rotation, 10)
                 };
 
+                broadcastPlacement();
                 updateScoreButtonState();
             });
         }
@@ -977,6 +1180,7 @@
             if (parentSlotName) state.placed[parentSlotName] = null;
 
             trayEl.appendChild(tileEl);
+            broadcastPlacement();
             updateScoreButtonState();
         });
 
@@ -1016,7 +1220,7 @@
         function showClueLabels() {
             for (const dir of ["top", "right", "bottom", "left"]) {
                 const box = clueRefs[dir], input = box.querySelector("input"), text = box.querySelector(".text");
-                const val = (input.value || "").trim();
+                const val = state.clues[dir] || "";
                 input.style.display = "none";
                 text.style.display = "block";
                 text.textContent = val.length ? val : `(${dir} clue)`;
@@ -1042,6 +1246,7 @@
                 input.style.display = "block";
                 text.style.display = "none";
             }
+            state.clues = { top: "", right: "", bottom: "", left: "" };
             setHintsVisible(false);
         }
 
@@ -1050,6 +1255,7 @@
         ----------------------------*/
         const doneBtn = document.getElementById("doneBtn");
         const scoreBtn = document.getElementById("scoreBtn");
+        const readyBtn = document.getElementById("readyBtn");
 
         function updateDoneButtonState() {
             const topVal = clueRefs.top.querySelector("input").value.trim();
@@ -1057,10 +1263,14 @@
             const bottomVal = clueRefs.bottom.querySelector("input").value.trim();
             const leftVal = clueRefs.left.querySelector("input").value.trim();
             const allFilled = topVal.length && rightVal.length && bottomVal.length && leftVal.length;
-            doneBtn.disabled = !(state.phase === "clue" && allFilled);
+            const isMyTurn = !roomCode || isCurrentPlayer();
+            doneBtn.disabled = !(state.phase === "clue" && allFilled && isMyTurn);
         }
         ["top", "right", "bottom", "left"].forEach(dir => {
-            clueRefs[dir].querySelector("input").addEventListener("input", updateDoneButtonState);
+            clueRefs[dir].querySelector("input").addEventListener("input", () => {
+                state.clues[dir] = clueRefs[dir].querySelector("input").value.trim();
+                updateDoneButtonState();
+            });
         });
 
         function updateScoreButtonState() {
@@ -1070,7 +1280,8 @@
                 !!slots.tr.querySelector(".tile") &&
                 !!slots.bl.querySelector(".tile") &&
                 !!slots.br.querySelector(".tile");
-            scoreBtn.disabled = !allSlotsHaveTiles;
+            const canScore = !roomCode || isPlayerToLeft();
+            scoreBtn.disabled = !(allSlotsHaveTiles && canScore);
         }
 
         /* ---------------------------
@@ -1128,11 +1339,24 @@
 
             updateDoneButtonState();
             scoreBtn.disabled = true;
-            log("Clue Phase: enter the 4 outside-edge clues. 'Done' enables when all four are filled.");
+
+            const isMyTurn = !roomCode || isCurrentPlayer();
+            log(isMyTurn ? "Clue Phase: enter the 4 outside-edge clues. 'Done' enables when all four are filled." : `${getCurrentPlayerName()}'s turn to create clues.`);
+
+            // Broadcast new round to all players
+            if (isHost) {
+                broadcastToAll({ type: "newRound", state: getGameState() });
+            }
         }
 
         function startGuessPhase() {
             if (state.phase !== "clue") return;
+
+            // Save clues
+            state.clues.top = clueRefs.top.querySelector("input").value.trim();
+            state.clues.right = clueRefs.right.querySelector("input").value.trim();
+            state.clues.bottom = clueRefs.bottom.querySelector("input").value.trim();
+            state.clues.left = clueRefs.left.querySelector("input").value.trim();
 
             showClueLabels();
             setHintsVisible(false);
@@ -1151,6 +1375,13 @@
             doneBtn.disabled = true;
             updateScoreButtonState();
             log("Resolution Phase: Drag tiles to slots. Tap to rotate. Then click Score.");
+
+            // Broadcast phase change
+            if (isHost) {
+                broadcastToAll({ type: "startGuess", state: getGameState() });
+            } else if (hostConnection) {
+                hostConnection.send({ type: "startGuess", state: getGameState() });
+            }
         }
 
         /* ---------------------------
@@ -1197,6 +1428,11 @@
                     scoreBtn.disabled = true;
                     setHintsVisible(true);
                     log("🎉 Perfect! All four cards correct on the first try. +6 points.");
+
+                    // Move to next player
+                    if (roomCode) {
+                        advanceToNextPlayer();
+                    }
                 } else {
                     setAttempt(2);
                     document.getElementById("scoreHint").textContent =
@@ -1212,20 +1448,438 @@
                 scoreBtn.disabled = true;
                 setHintsVisible(true);
                 log(`Round complete. You scored ${lockedFinal} point(s) on the second attempt.`);
+
+                // Move to next player
+                if (roomCode) {
+                    advanceToNextPlayer();
+                }
             }
+
+            // Broadcast score
+            if (isHost) {
+                broadcastToAll({ type: "score", state: getGameState() });
+            } else if (hostConnection) {
+                hostConnection.send({ type: "score", state: getGameState() });
+            }
+        }
+
+        /* ---------------------------
+        Multiplayer Functions
+        ----------------------------*/
+
+        function isCurrentPlayer() {
+            if (!roomCode || playerOrder.length === 0) return true;
+            const currentPlayer = playerOrder[currentPlayerIndex];
+            return currentPlayer && currentPlayer.id === myPeerId;
+        }
+
+        function isPlayerToLeft() {
+            if (!roomCode || playerOrder.length === 0) return true;
+            const leftIndex = (currentPlayerIndex + 1) % playerOrder.length;
+            const leftPlayer = playerOrder[leftIndex];
+            return leftPlayer && leftPlayer.id === myPeerId;
+        }
+
+        function getCurrentPlayerName() {
+            if (!roomCode || playerOrder.length === 0) return "";
+            const currentPlayer = playerOrder[currentPlayerIndex];
+            return currentPlayer ? currentPlayer.name : "";
+        }
+
+        function advanceToNextPlayer() {
+            currentPlayerIndex = (currentPlayerIndex + 1) % playerOrder.length;
+            updateLobbyDisplay();
+
+            // Start new round for next player
+            setTimeout(() => {
+                newRound();
+            }, 2000);
+        }
+
+        function getGameState() {
+            return {
+                phase: state.phase,
+                tiles: state.tiles,
+                solution: state.solution,
+                placed: state.placed,
+                attempt: state.attempt,
+                roundScore: state.roundScore,
+                clues: state.clues,
+                currentPlayerIndex: currentPlayerIndex
+            };
+        }
+
+        function applyGameState(gameState) {
+            state.phase = gameState.phase;
+            state.tiles = gameState.tiles;
+            state.solution = gameState.solution;
+            state.placed = gameState.placed;
+            state.attempt = gameState.attempt;
+            state.roundScore = gameState.roundScore;
+            state.clues = gameState.clues;
+            currentPlayerIndex = gameState.currentPlayerIndex;
+
+            // Update UI
+            setPhase(state.phase);
+            setAttempt(state.attempt);
+            document.getElementById("roundScore").textContent = state.roundScore;
+
+            // Rebuild board
+            renderGameBoard();
+            updateLobbyDisplay();
+        }
+
+        function renderGameBoard() {
+            clearBoardAndTray();
+
+            if (state.phase === "clue") {
+                // Show solution tiles
+                for (const slotName of ["tl", "tr", "bl", "br"]) {
+                    const sol = state.solution[slotName];
+                    const tile = state.tiles.find(t => t.id === sol.tileId);
+                    if (tile) {
+                        const el = createTileElement(tile, sol.rotation, { draggable: false, rotatable: false, dimInner: true, slotName });
+                        slots[slotName].appendChild(el);
+                    }
+                }
+                setClueHintsFromSolution();
+                showClueInputs();
+
+                // Restore clue values
+                for (const dir of ["top", "right", "bottom", "left"]) {
+                    clueRefs[dir].querySelector("input").value = state.clues[dir] || "";
+                }
+            } else if (state.phase === "guess" || state.phase === "complete") {
+                showClueLabels();
+
+                // Place tiles in slots or tray
+                const placedTileIds = new Set();
+                for (const slotName of ["tl", "tr", "bl", "br"]) {
+                    const placement = state.placed[slotName];
+                    if (placement) {
+                        const tile = state.tiles.find(t => t.id === placement.tileId);
+                        if (tile) {
+                            const el = createTileElement(tile, placement.rotation, { draggable: true, rotatable: true });
+
+                            // Check if should be locked
+                            const sol = state.solution[slotName];
+                            if (sol.tileId === placement.tileId && sol.rotation === placement.rotation) {
+                                el.classList.add("locked");
+                                el.draggable = false;
+                            }
+
+                            slots[slotName].appendChild(el);
+                            placedTileIds.add(placement.tileId);
+                        }
+                    }
+                }
+
+                // Put remaining tiles in tray
+                for (const tile of state.tiles) {
+                    if (!placedTileIds.has(tile.id)) {
+                        const existingEl = document.querySelector(`.tile[data-id="${tile.id}"]`);
+                        if (!existingEl) {
+                            const randomRot = Math.floor(Math.random() * 4);
+                            const el = createTileElement(tile, randomRot, { draggable: true, rotatable: true });
+                            trayEl.appendChild(el);
+                        }
+                    }
+                }
+
+                if (state.phase === "complete") {
+                    setHintsVisible(true);
+                }
+            }
+
+            updateDoneButtonState();
+            updateScoreButtonState();
+        }
+
+        function broadcastPlacement() {
+            if (!roomCode) return;
+
+            const msg = {
+                type: "placement",
+                placed: state.placed
+            };
+
+            if (isHost) {
+                broadcastToAll(msg);
+            } else if (hostConnection) {
+                hostConnection.send(msg);
+            }
+        }
+
+        function broadcastToAll(msg) {
+            for (const conn of Object.values(clientConnections)) {
+                if (conn.open) {
+                    conn.send(msg);
+                }
+            }
+        }
+
+        function handleMessage(data, fromPeerId) {
+            if (data.type === "placement") {
+                state.placed = data.placed;
+                renderGameBoard();
+            } else if (data.type === "newRound") {
+                applyGameState(data.state);
+            } else if (data.type === "startGuess") {
+                applyGameState(data.state);
+            } else if (data.type === "score") {
+                applyGameState(data.state);
+            } else if (data.type === "playerJoined" && isHost) {
+                // Handle new player joining
+                const player = { id: fromPeerId, name: data.name, ready: false };
+                if (!playerOrder.find(p => p.id === fromPeerId)) {
+                    playerOrder.push(player);
+                    updatePlayerList();
+                    broadcastPlayerList();
+                }
+            } else if (data.type === "playerList") {
+                playerOrder = data.players;
+                currentPlayerIndex = data.currentPlayerIndex;
+                updatePlayerList();
+                updateLobbyDisplay();
+            } else if (data.type === "playerReady") {
+                const player = playerOrder.find(p => p.id === fromPeerId);
+                if (player) {
+                    player.ready = data.ready;
+                    updatePlayerList();
+                    if (isHost) {
+                        broadcastPlayerList();
+                        checkStartGame();
+                    }
+                }
+            } else if (data.type === "gameStart") {
+                applyGameState(data.state);
+                document.getElementById("lobbyModal").style.display = "none";
+                document.getElementById("readyBtn").style.display = "none";
+            }
+        }
+
+        function broadcastPlayerList() {
+            broadcastToAll({
+                type: "playerList",
+                players: playerOrder,
+                currentPlayerIndex: currentPlayerIndex
+            });
+        }
+
+        function checkStartGame() {
+            const allReady = playerOrder.length >= 2 && playerOrder.every(p => p.ready);
+            document.getElementById("startGameBtn").disabled = !allReady;
+        }
+
+        function updatePlayerList() {
+            const listEl = document.getElementById("playerList");
+            if (!listEl) return;
+
+            listEl.innerHTML = playerOrder.map((p, i) => {
+                const isCurrent = i === currentPlayerIndex;
+                return `<div class="player-item ${p.ready ? 'ready' : ''} ${isCurrent ? 'active' : ''}">
+                    <div class="name">${p.name}${p.id === myPeerId ? ' (You)' : ''}</div>
+                    <div class="status ${p.ready ? 'ready' : ''}">${p.ready ? '✓ Ready' : 'Not ready'}</div>
+                </div>`;
+            }).join('');
+        }
+
+        function updateLobbyDisplay() {
+            if (roomCode) {
+                document.getElementById("lobbyInfoPanel").style.display = "block";
+                document.getElementById("displayRoomCode").textContent = roomCode;
+                document.getElementById("displayPlayerCount").textContent = playerOrder.length;
+                document.getElementById("displayCurrentPlayer").textContent = getCurrentPlayerName();
+            }
+        }
+
+        /* ---------------------------
+        Lobby UI Functions
+        ----------------------------*/
+
+        function showLobbyModal() {
+            document.getElementById("lobbyModal").style.display = "flex";
+            showLobbyStart();
+        }
+
+        function showLobbyStart() {
+            document.getElementById("lobbyStart").style.display = "block";
+            document.getElementById("lobbyCreate").style.display = "none";
+            document.getElementById("lobbyJoin").style.display = "none";
+        }
+
+        function createLobby() {
+            document.getElementById("lobbyStart").style.display = "none";
+            document.getElementById("lobbyCreate").style.display = "block";
+        }
+
+        function showJoinForm() {
+            document.getElementById("lobbyStart").style.display = "none";
+            document.getElementById("lobbyJoin").style.display = "block";
+        }
+
+        function generateLobby() {
+            const name = document.getElementById("hostName").value.trim();
+            if (!name) {
+                alert("Please enter your name");
+                return;
+            }
+
+            myName = name;
+            isHost = true;
+
+            // Initialize PeerJS
+            peer = new Peer();
+
+            peer.on("open", (id) => {
+                myPeerId = id;
+                roomCode = id.substring(0, 6).toUpperCase();
+
+                document.getElementById("roomCode").textContent = roomCode;
+                document.getElementById("lobbyCodeDisplay").style.display = "block";
+                document.getElementById("createLobbyButtons").style.display = "none";
+
+                playerOrder = [{ id: myPeerId, name: myName, ready: false }];
+                updatePlayerList();
+
+                log(`Lobby created: ${roomCode}`);
+            });
+
+            peer.on("connection", (conn) => {
+                clientConnections[conn.peer] = conn;
+
+                conn.on("open", () => {
+                    log(`Player connected: ${conn.peer}`);
+                });
+
+                conn.on("data", (data) => {
+                    handleMessage(data, conn.peer);
+                });
+
+                conn.on("close", () => {
+                    delete clientConnections[conn.peer];
+                    playerOrder = playerOrder.filter(p => p.id !== conn.peer);
+                    updatePlayerList();
+                    broadcastPlayerList();
+                });
+            });
+
+            peer.on("error", (err) => {
+                console.error("Peer error:", err);
+                alert("Error creating lobby: " + err.message);
+            });
+        }
+
+        function joinLobby() {
+            const name = document.getElementById("joinName").value.trim();
+            const code = document.getElementById("joinCode").value.trim().toLowerCase();
+
+            if (!name || !code) {
+                alert("Please enter your name and lobby code");
+                return;
+            }
+
+            myName = name;
+            isHost = false;
+
+            // Initialize PeerJS
+            peer = new Peer();
+
+            peer.on("open", (id) => {
+                myPeerId = id;
+                roomCode = code.toUpperCase();
+
+                // Find the host peer ID (we only have the first 6 chars)
+                // For PeerJS cloud server, we need the full peer ID
+                // This is a limitation - in production, you'd use a signaling server
+
+                // For now, try to connect directly if we have the full peer ID
+                const hostPeerId = code;
+                hostConnection = peer.connect(hostPeerId);
+
+                hostConnection.on("open", () => {
+                    log(`Connected to lobby: ${roomCode}`);
+                    document.getElementById("lobbyModal").style.display = "none";
+                    document.getElementById("readyBtn").style.display = "inline-block";
+
+                    // Send join message
+                    hostConnection.send({ type: "playerJoined", name: myName });
+
+                    updateLobbyDisplay();
+                });
+
+                hostConnection.on("data", (data) => {
+                    handleMessage(data, hostPeerId);
+                });
+
+                hostConnection.on("close", () => {
+                    log("Disconnected from lobby");
+                    alert("Disconnected from lobby");
+                });
+
+                hostConnection.on("error", (err) => {
+                    console.error("Connection error:", err);
+                    alert("Could not connect to lobby. Make sure the code is correct.");
+                });
+            });
+
+            peer.on("error", (err) => {
+                console.error("Peer error:", err);
+                alert("Error joining lobby: " + err.message);
+            });
+        }
+
+        function toggleReady() {
+            myReadyState = !myReadyState;
+
+            const player = playerOrder.find(p => p.id === myPeerId);
+            if (player) {
+                player.ready = myReadyState;
+            }
+
+            readyBtn.textContent = myReadyState ? "Not Ready" : "Ready";
+            readyBtn.className = myReadyState ? "warn" : "";
+
+            updatePlayerList();
+
+            if (isHost) {
+                broadcastPlayerList();
+                checkStartGame();
+            } else if (hostConnection) {
+                hostConnection.send({ type: "playerReady", ready: myReadyState });
+            }
+        }
+
+        function startGame() {
+            if (playerOrder.length < 2) {
+                alert("Need at least 2 players to start");
+                return;
+            }
+
+            if (!playerOrder.every(p => p.ready)) {
+                alert("All players must be ready");
+                return;
+            }
+
+            // Start the game
+            currentPlayerIndex = 0;
+            newRound();
+
+            document.getElementById("lobbyModal").style.display = "none";
+            document.getElementById("readyBtn").style.display = "none";
+
+            // Broadcast game start
+            broadcastToAll({
+                type: "gameStart",
+                state: getGameState()
+            });
         }
 
         /* ---------------------------
         Event handlers
         ----------------------------*/
-        document.getElementById("newRoundBtn").addEventListener("click", () => {
-            if (state.phase === "clue" || state.phase === "guess") {
-                const ok = window.confirm("Start a new round? This will discard the current round.");
-                if (!ok) return;
-            }
-            newRound();
-        });
-
+        document.getElementById("lobbyBtn").addEventListener("click", showLobbyModal);
+        document.getElementById("readyBtn").addEventListener("click", toggleReady);
         document.getElementById("doneBtn").addEventListener("click", startGuessPhase);
         document.getElementById("scoreBtn").addEventListener("click", scoreGuess);
 
@@ -1250,7 +1904,7 @@
             setAttempt(0);
             document.getElementById("roundScore").textContent = "0";
             document.getElementById("scoreHint").textContent = "";
-            log("Click 'New Round' to begin.");
+            log("Click 'Join/Create Lobby' to play multiplayer, or start a solo game.");
         })();
     </script>
 

@@ -1733,7 +1733,7 @@
 
             peer.on("open", (id) => {
                 myPeerId = id;
-                roomCode = id.substring(0, 6).toUpperCase();
+                roomCode = id;
 
                 document.getElementById("roomCode").textContent = roomCode;
                 document.getElementById("lobbyCodeDisplay").style.display = "block";

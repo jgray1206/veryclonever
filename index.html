@@ -549,6 +549,7 @@
     <h1>🍀 So Clover</h1>
     <div class="controls">
         <button id="actionBtn" style="display:none;">Submit Clues</button>
+        <button id="playAgainBtn" class="secondary" style="display:none;" onclick="handlePlayAgain()">Play Again</button>
     </div>
 </header>
 
@@ -626,7 +627,7 @@
     let conn = null; // Client -> Host
     let connections = {}; // Host -> Clients
     let isHost = false;
-    let isLocalMode = false;
+    let isLocalMode = false; // NEW: Track local mode
     let myName = "Player";
     let players = [];
 
@@ -651,6 +652,7 @@
         board: document.getElementById('board'),
         dock: document.getElementById('dock'),
         actionBtn: document.getElementById('actionBtn'),
+        playAgainBtn: document.getElementById('playAgainBtn'),
         instruction: document.getElementById('instruction'),
         waitingScreen: document.getElementById('waitingScreen'),
         waitTitle: document.getElementById('waitTitle'),
@@ -680,11 +682,33 @@
         isHost = false;
         myPeerId = 'local-player';
         myName = "Local Player";
+        totalScore = 0;
 
         els.lobbyModal.style.display = 'none';
         startPrepPhase();
     }
 
+    function handlePlayAgain() {
+        if (isLocalMode) {
+            // Reset local game
+            totalScore = 0;
+            els.scoreDisplay.textContent = 'Score: 0';
+            els.playAgainBtn.style.display = 'none';
+            startPrepPhase();
+        } else if (isHost) {
+            // Reset multiplayer game
+            totalScore = 0;
+            hostLobbyState = {};
+            players.forEach(p => p.status = 'waiting');
+
+            // Notify all clients
+            broadcast({ type: 'PLAY_AGAIN' });
+
+            // Start prep for everyone
+            broadcast({ type: 'START_PREP', players });
+            startPrepPhase();
+        }
+    }
     /**
      * TILE & BOARD RENDERER
      */
@@ -843,11 +867,14 @@
         currentPhase = STATE.PREP;
         els.lobbyModal.style.display = 'none';
         els.instruction.textContent = "Write in your 4 clues.";
+        els.instruction.style.color = 'var(--accent2)';
         els.actionBtn.textContent = "Done - Submit Clues";
         els.actionBtn.style.display = "block";
         els.actionBtn.disabled = true;
         els.waitingScreen.style.display = 'none';
         els.spectatorBanner.style.display = 'none';
+        els.playAgainBtn.style.display = 'none';
+        els.phaseDisplay.textContent = isLocalMode ? "Prep Phase" : "Writing Clues...";
 
         // Generate my local board
         const t1 = generateTile('t1');
@@ -861,23 +888,39 @@
 
         myBoard = {
             solution: {},
-            clues: {top: '', right: '', bottom: '', left: ''}
+            clues: { top: '', right: '', bottom: '', left: '' }
         };
 
         // Place them visually in slots immediately (fixed for Prep)
         slots.forEach((s, i) => {
             const rot = Math.floor(Math.random() * 4);
-            myBoard.solution[s] = {tile: tiles[i], rot: rot};
+            myBoard.solution[s] = { tile: tiles[i], rot: rot };
 
             const slotEl = document.querySelector(`.slot.${s}`);
             slotEl.innerHTML = '';
             slotEl.appendChild(createTileEl(tiles[i], rot, false, true)); // Not draggable in prep
         });
 
-        // Listen for inputs
-        const inputs = document.querySelectorAll('.clue-box input');
-        inputs.forEach(inp => {
-            inp.addEventListener('input', checkPrepReady);
+        // Clear dock
+        els.dock.innerHTML = '';
+
+        // Clear and reset clue inputs
+        ['top', 'right', 'bottom', 'left'].forEach(dir => {
+            const input = document.getElementById(`clue-${dir}`);
+            const parent = input.parentElement;
+
+            // Remove any old clue-display divs
+            const oldDisp = parent.querySelector('.clue-display');
+            if (oldDisp) oldDisp.remove();
+
+            // Show and reset input
+            input.style.display = 'block';
+            input.value = '';
+            input.disabled = false;
+
+            // Re-attach listener (remove old ones first)
+            input.removeEventListener('input', checkPrepReady);
+            input.addEventListener('input', checkPrepReady);
         });
     }
 
@@ -1160,11 +1203,21 @@
         else if (data.type === 'START_ROUND') { handleStartRound(data.state); }
         else if (data.type === 'TILE_MOVE') { handleTileMove(data); }
         else if (data.type === 'ROUND_RESULT') { handleRoundResult(data); }
+        else if (data.type === 'PLAY_AGAIN') {
+            totalScore = 0;
+            els.scoreDisplay.textContent = 'Score: 0';
+            els.playAgainBtn.style.display = 'none';
+        }
         else if (data.type === 'GAME_OVER') {
             els.waitingScreen.style.display = 'grid';
             els.waitTitle.textContent = "Game Over!";
             els.waitMsg.textContent = `Total Team Score: ${data.score}`;
             els.actionBtn.style.display = 'none';
+
+            // Show play again button (only for host in multiplayer)
+            if (isLocalMode || isHost) {
+                els.playAgainBtn.style.display = 'block';
+            }
         }
     }
 
@@ -1228,6 +1281,8 @@
                     if (tile) tile.classList.add('locked');
                 }
             });
+
+            checkAllSlotsFilled();
         }
         else if (data.result === 'DONE') {
             els.instruction.textContent = `Round Done! +${data.score} Points.`;
@@ -1235,7 +1290,7 @@
             els.actionBtn.style.display = 'none';
 
             if (isLocalMode) {
-                els.instruction.textContent += " Refresh to play again!";
+                els.playAgainBtn.style.display = 'block';
             }
         }
     }
@@ -1314,14 +1369,18 @@
 
             const json = e.dataTransfer.getData('text/plain');
             if (!json) return;
-            const {id} = JSON.parse(json);
+            const { id } = JSON.parse(json);
             const draggedTile = document.querySelector(`.tile[data-id="${id}"]`);
 
             if (!draggedTile || draggedTile.classList.contains('locked')) return;
 
+            const sourceContainer = draggedTile.parentElement;
+
+            // Determine if we're dropping onto the dock or a slot
+            const isDock = container.id === 'dock';
+
             // Check if target slot already has a tile
             const existingTile = container.querySelector('.tile');
-            const sourceContainer = draggedTile.parentElement;
 
             // Determine target slot name
             let target = 'dock';
@@ -1332,8 +1391,8 @@
                 if (container.classList.contains('br')) target = 'br';
             }
 
-            // SWAP if target has a tile, otherwise just move
-            if (existingTile && existingTile !== draggedTile && !existingTile.classList.contains('locked')) {
+            // SWAP only if target has a tile AND target is a slot (not dock)
+            if (existingTile && existingTile !== draggedTile && !existingTile.classList.contains('locked') && !isDock) {
                 // Swap the tiles
                 sourceContainer.appendChild(existingTile);
 
@@ -1360,6 +1419,9 @@
                 } else {
                     conn.send(swapData);
                 }
+            } else if (isDock && existingTile && existingTile !== draggedTile) {
+                // Dropping onto dock with other tiles - just append (no swap)
+                // Do nothing special, just proceed with normal move
             }
 
             // Move dragged tile to target

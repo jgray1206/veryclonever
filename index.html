@@ -751,6 +751,20 @@
 
     function getScoreResult(playerCount, score) {
         const scoreTable = {
+            1: [
+                { max: 2, result: '🌱 Small sprout' },
+                { max: 3, result: '🌿 Growth' },
+                { max: 4, result: '🌼 First bud' },
+                { max: 5, result: '🌸 Blossom' },
+                { max: Infinity, result: '🍀 Four-leaf clover' }
+            ],
+            2: [
+                { max: 4, result: '🌱 Small sprout' },
+                { max: 6, result: '🌿 Growth' },
+                { max: 9, result: '🌼 First bud' },
+                { max: 11, result: '🌸 Blossom' },
+                { max: Infinity, result: '🍀 Four-leaf clover' }
+            ],
             3: [
                 { max: 6, result: '🌱 Small sprout' },
                 { max: 10, result: '🌿 Growth' },

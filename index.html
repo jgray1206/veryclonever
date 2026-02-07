@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
     <title>So Clover</title>
     <style>
         :root {
@@ -20,6 +20,10 @@
             --ok: #51cf66;
         }
 
+        * {
+            box-sizing: border-box;
+        }
+
         html,
         body {
             margin: 0;
@@ -27,25 +31,33 @@
             background: var(--bg);
             color: var(--text);
             font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+            -webkit-font-smoothing: antialiased;
+            overflow-x: hidden;
         }
 
         header {
-            padding: 16px 24px;
+            padding: 12px 16px;
             border-bottom: 1px solid #2b3b6e;
             display: flex;
             align-items: center;
-            gap: 16px;
+            gap: 12px;
+            flex-wrap: wrap;
+            position: sticky;
+            top: 0;
+            background: var(--bg);
+            z-index: 100;
         }
 
         header h1 {
-            font-size: 1.25rem;
+            font-size: 1.15rem;
             margin: 0;
+            flex-shrink: 0;
         }
 
         header .controls {
             display: flex;
             flex-wrap: wrap;
-            gap: 8px;
+            gap: 6px;
             margin-left: auto;
         }
 
@@ -57,6 +69,9 @@
             padding: 8px 12px;
             font-weight: 600;
             cursor: pointer;
+            font-size: 0.9rem;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
         }
 
         button.secondary {
@@ -74,14 +89,17 @@
             cursor: not-allowed;
         }
 
-        /* Layout: compact info panel + stage (board+dock) */
+        button:active:not(:disabled) {
+            transform: scale(0.98);
+        }
+
+        /* Mobile-first layout */
         main {
-            display: grid;
-            grid-template-columns: fit-content(320px) 1fr;
-            /* left shrinks to content up to ~320px */
+            display: flex;
+            flex-direction: column;
             gap: 16px;
             padding: 16px;
-            align-items: start;
+            max-width: 100%;
         }
 
         /* Compact info panel */
@@ -92,8 +110,6 @@
             display: flex;
             flex-direction: column;
             gap: 10px;
-            width: auto;
-            max-width: 320px;
         }
 
         .panel h2 {
@@ -105,37 +121,36 @@
         .log {
             font-family: ui-monospace, Menlo, Consolas, "Liberation Mono", monospace;
             color: #b9c6ec;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
+            line-height: 1.4;
         }
 
-        /* Stage: board + dock side-by-side */
+        /* Stage container */
         .stage {
-            display: grid;
-            grid-template-columns: 760px minmax(240px, 480px);
-            /* board fixed, dock flexible */
+            display: flex;
+            flex-direction: column;
             gap: 16px;
-            align-items: start;
-            justify-content: center;
-            /* center the stage in the right column */
+            align-items: center;
+            width: 100%;
         }
 
-        /* Board */
+        /* Board - responsive sizing */
         .board {
             position: relative;
-            width: 760px;
-            height: 760px;
+            width: min(95vw, 600px);
+            aspect-ratio: 1;
             background: radial-gradient(circle at 50% 50%, #24335f 0%, var(--board) 60%);
-            border-radius: 24px;
+            border-radius: 16px;
             box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
             overflow: visible;
         }
 
-        /* 2×2 Slots — pulled closer (small ~10px gap between tiles) */
+        /* 2×2 Slots - proportional sizing */
         .slot {
             position: absolute;
-            width: 260px;
-            height: 260px;
-            border-radius: 20px;
+            width: 34%;
+            aspect-ratio: 1;
+            border-radius: 12px;
             border: 2px dashed #5a6bbc;
             background: #121a39;
             display: grid;
@@ -144,23 +159,23 @@
         }
 
         .slot.tl {
-            left: 110px;
-            top: 110px;
+            left: 14.5%;
+            top: 14.5%;
         }
 
         .slot.tr {
-            left: 380px;
-            top: 110px;
+            right: 14.5%;
+            top: 14.5%;
         }
 
         .slot.bl {
-            left: 110px;
-            top: 380px;
+            left: 14.5%;
+            bottom: 14.5%;
         }
 
         .slot.br {
-            left: 380px;
-            top: 380px;
+            right: 14.5%;
+            bottom: 14.5%;
         }
 
         .slot.highlight {
@@ -168,17 +183,18 @@
             box-shadow: 0 0 0 2px var(--accent2);
         }
 
-        /* Tiles — full size */
+        /* Tiles - responsive */
         .tile {
-            width: 220px;
-            height: 220px;
+            width: 90%;
+            aspect-ratio: 1;
             background: var(--tile);
-            border-radius: 16px;
+            border-radius: 12px;
             border: 2px solid #3a4c8a;
             position: relative;
             user-select: none;
-            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.35);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.35);
             z-index: 5;
+            touch-action: none;
         }
 
         .tile .center-mark {
@@ -186,66 +202,72 @@
             left: 50%;
             top: 50%;
             transform: translate(-50%, -50%);
-            width: 36px;
-            height: 36px;
-            border-radius: 8px;
+            width: 16%;
+            aspect-ratio: 1;
+            border-radius: 4px;
             background: #0f1530;
             border: 2px solid #394a86;
         }
 
-        /* Edge labels — horizontal vs vertical */
+        /* Edge labels */
         .edge {
             position: absolute;
             background: #0c1230;
             border: 1px solid #4156a3;
-            border-radius: 8px;
+            border-radius: 4px;
             color: var(--text);
-            font-size: 0.95rem;
+            font-size: clamp(0.7rem, 2.2vw, 0.95rem);
             text-align: center;
             box-sizing: border-box;
-            padding: 6px 8px;
+            padding: 3px 5px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1.2;
+            font-weight: 500;
         }
 
         .edge.top,
         .edge.bottom {
-            width: 80%;
-            min-height: 28px;
+            width: 70%;
+            height: 16%;
             left: 50%;
             transform: translateX(-50%);
+            white-space: nowrap;
         }
 
         .edge.top {
-            top: 6px;
+            top: 3%;
         }
 
         .edge.bottom {
-            bottom: 6px;
+            bottom: 3%;
         }
 
         .edge.left,
         .edge.right {
-            width: 28px;
-            height: 80%;
+            width: 16%;
+            height: 70%;
             top: 50%;
             transform: translateY(-50%);
-            padding: 6px;
+            padding: 5px 3px;
             writing-mode: vertical-rl;
             text-orientation: mixed;
         }
 
         .edge.left {
-            left: 6px;
+            left: 3%;
         }
 
         .edge.right {
-            right: 6px;
+            right: 3%;
         }
 
         .edge.inner {
             opacity: 0.25;
         }
-
-        /* inner 8 words dim in clue phase */
 
         .tile.draggable {
             cursor: grab;
@@ -261,33 +283,44 @@
             box-shadow: 0 0 0 3px var(--locked) inset;
         }
 
-        /* Dock (to the right) — full-size tiles, auto 1–2 columns depending on width */
+        /* Dock - mobile friendly grid */
+        .dock-wrap {
+            width: 100%;
+            max-width: 600px;
+        }
+
         .dock-title {
-            margin: 0 0 8px 0;
+            margin: 0 0 12px 0;
             color: var(--muted);
-            font-size: 1rem;
+            font-size: 0.95rem;
+            text-align: center;
         }
 
         .dock {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-            /* 1 or 2 cols as width allows */
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
             justify-items: center;
-            gap: 16px;
+            gap: 12px;
+            padding: 12px;
+            background: var(--panel);
+            border-radius: 12px;
         }
 
-        /* Clue boxes around the board (outside-edge clues) */
+        .dock .tile {
+            width: min(140px, 100%);
+        }
+
+        /* Clue boxes - mobile optimized */
         .clue-pair {
             position: absolute;
             z-index: 20;
             pointer-events: auto;
-            background: rgba(12, 18, 48, 0.96);
+            background: rgba(12, 18, 48, 0.98);
             border: 1px solid #4f64ad;
-            border-radius: 10px;
+            border-radius: 8px;
             padding: 8px 12px;
             color: var(--text);
-            font-size: 1rem;
-            min-width: 280px;
+            font-size: clamp(0.85rem, 3vw, 1rem);
             box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
             text-align: center;
         }
@@ -299,41 +332,44 @@
             border: none;
             outline: none;
             text-align: center;
-            font-size: 1rem;
+            font-size: clamp(0.85rem, 3vw, 1rem);
         }
 
         .clue-pair .text {
             display: none;
+            font-weight: 500;
         }
 
-        /* Hide pair words until round complete */
         .clue-pair .hint {
             display: none;
-            font-size: 0.8rem;
+            font-size: clamp(0.7rem, 2.5vw, 0.85rem);
             color: var(--muted);
             margin-top: 4px;
         }
 
-        /* Top/Bottom (horizontal) positions */
+        /* Top/Bottom clues */
         .clue-pair.top {
             left: 50%;
-            top: 12px;
+            top: 1%;
             transform: translateX(-50%);
+            width: min(280px, 70%);
         }
 
         .clue-pair.bottom {
             left: 50%;
-            bottom: 12px;
+            bottom: 1%;
             transform: translateX(-50%);
+            width: min(280px, 70%);
         }
 
-        /* LEFT/RIGHT: vertical boxes hugging outer edges */
+        /* Left/Right clues */
         .clue-pair.left,
         .clue-pair.right {
-            width: 56px;
-            height: 300px;
-            padding: 8px 6px;
-            min-width: unset;
+            width: 10%;
+            min-width: 40px;
+            max-width: 56px;
+            height: 50%;
+            padding: 6px 4px;
             top: 50%;
             transform: translateY(-50%);
             display: grid;
@@ -341,11 +377,11 @@
         }
 
         .clue-pair.left {
-            left: 8px;
+            left: 1%;
         }
 
         .clue-pair.right {
-            right: 8px;
+            right: 1%;
         }
 
         .clue-pair.left input,
@@ -374,6 +410,7 @@
             padding: 10px;
             display: grid;
             gap: 6px;
+            font-size: 0.9rem;
         }
 
         .scorebox .ok {
@@ -381,7 +418,6 @@
         }
 
         .score-ref {
-            margin-top: 10px;
             background: #0f1530;
             border: 1px solid #37477c;
             border-radius: 10px;
@@ -399,11 +435,12 @@
         .score-ref table {
             width: 100%;
             border-collapse: collapse;
+            font-size: 0.7rem;
         }
 
         .score-ref th,
         .score-ref td {
-            padding: 2px 4px;
+            padding: 3px 4px;
             text-align: left;
             border-bottom: 1px solid #2b3b6e;
             color: var(--text);
@@ -416,7 +453,7 @@
 
         .score-ref tr.sep td {
             border: none;
-            height: 6px;
+            height: 4px;
         }
 
         .score-ref-toggle {
@@ -425,13 +462,14 @@
             color: var(--text);
             border: 1px solid #37477c;
             border-radius: 8px;
-            padding: 6px 8px;
+            padding: 8px;
             font-size: 0.8rem;
             font-weight: 600;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: space-between;
+            touch-action: manipulation;
         }
 
         .score-ref-toggle:hover {
@@ -441,23 +479,104 @@
         .score-ref-body {
             margin-top: 6px;
         }
+
+        .footer-note {
+            color: var(--muted);
+            font-size: 0.8rem;
+            margin: 0;
+            line-height: 1.4;
+        }
+
+        /* Tablet landscape and up */
+        @media (min-width: 768px) {
+            main {
+                display: grid;
+                grid-template-columns: minmax(280px, 320px) 1fr;
+                gap: 16px;
+                padding: 16px;
+                align-items: start;
+            }
+
+            .stage {
+                flex-direction: row;
+                justify-content: center;
+                align-items: start;
+            }
+
+            .board {
+                width: min(600px, 60vw);
+            }
+
+            .dock-wrap {
+                max-width: 300px;
+            }
+
+            .dock {
+                grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            }
+
+            header h1 {
+                font-size: 1.25rem;
+            }
+
+            .edge {
+                font-size: clamp(0.75rem, 1.5vw, 0.95rem);
+            }
+        }
+
+        /* Desktop */
+        @media (min-width: 1200px) {
+            .board {
+                width: 760px;
+            }
+
+            .dock-wrap {
+                max-width: 400px;
+            }
+
+            .dock .tile {
+                width: 160px;
+            }
+
+            .edge {
+                font-size: 1.05rem;
+                border-radius: 6px;
+                padding: 4px 6px;
+            }
+
+            .edge.left,
+            .edge.right {
+                padding: 6px 4px;
+            }
+        }
+
+        /* Touch improvements */
+        @media (hover: none) and (pointer: coarse) {
+            button {
+                min-height: 44px;
+                min-width: 44px;
+            }
+
+            .tile {
+                cursor: pointer;
+            }
+        }
     </style>
 </head>
 
 <body>
 
     <header>
-        <h1>🌿 So Clover</h1>
+        <h1>🍀 So Clover</h1>
         <div class="controls">
             <button id="newRoundBtn">New Round</button>
-            <button id="doneBtn" disabled>Done (clue giver)</button>
+            <button id="doneBtn" disabled>Done</button>
             <button id="scoreBtn" disabled>Score</button>
-            <!-- No Reset -->
         </div>
     </header>
 
     <main>
-        <!-- Compact help/info panel (top-left) -->
+        <!-- Compact help/info panel -->
         <section class="panel">
             <span id="phaseBadge" class="phase-badge">Idle</span>
             <div class="log" id="log"></div>
@@ -467,12 +586,12 @@
                 <div>Round score: <span id="roundScore">0</span></div>
                 <div id="scoreHint" class="muted"></div>
             </div>
-            <div>
-                <p class="footer-note" style="color:var(--muted); font-size:0.85rem; margin:0;">
-                    Clue Phase: enter 4 clues (Top/Right/Bottom/Left) for outer edge pairs.<br />
-                    Resolution: drag 4 originals + 1 decoy to TL/TR/BL/BR, rotate by click, then Score.
-                </p>
-            </div>
+
+            <p class="footer-note">
+                <strong>Clue Phase:</strong> Enter 4 clues for outer edge word pairs.<br>
+                <strong>Resolution:</strong> Drag tiles to slots, tap to rotate, then score.
+            </p>
+
             <div class="score-ref">
                 <button class="score-ref-toggle" id="scoreRefToggle" aria-expanded="false">
                     Scoring Reference ▾
@@ -513,11 +632,9 @@
                                 <td>18</td>
                                 <td>🍀 Four-leaf clover</td>
                             </tr>
-
                             <tr class="sep">
                                 <td colspan="3"></td>
                             </tr>
-
                             <tr>
                                 <td>4</td>
                                 <td>0–8</td>
@@ -543,11 +660,9 @@
                                 <td>24</td>
                                 <td>🍀 Four-leaf clover</td>
                             </tr>
-
                             <tr class="sep">
                                 <td colspan="3"></td>
                             </tr>
-
                             <tr>
                                 <td>5</td>
                                 <td>0–10</td>
@@ -573,11 +688,9 @@
                                 <td>30</td>
                                 <td>🍀 Four-leaf clover</td>
                             </tr>
-
                             <tr class="sep">
                                 <td colspan="3"></td>
                             </tr>
-
                             <tr>
                                 <td>6</td>
                                 <td>0–12</td>
@@ -606,10 +719,10 @@
                         </tbody>
                     </table>
                 </div>
-                <br />
+            </div>
         </section>
 
-        <!-- Stage: board + dock side-by-side -->
+        <!-- Stage: board + dock -->
         <section class="stage" id="stage">
             <!-- Board -->
             <div class="board" id="board">
@@ -621,30 +734,30 @@
 
                 <!-- Four outside-edge clues -->
                 <div class="clue-pair top" id="clueTop">
-                    <input type="text" maxlength="40" placeholder="Top clue (TL.top + TR.top)">
+                    <input type="text" maxlength="40" placeholder="Top clue">
                     <div class="text"></div>
                     <div class="hint"></div>
                 </div>
                 <div class="clue-pair right" id="clueRight">
-                    <input type="text" maxlength="40" placeholder="Right clue (TR.right + BR.right)">
+                    <input type="text" maxlength="40" placeholder="Right">
                     <div class="text"></div>
                     <div class="hint"></div>
                 </div>
                 <div class="clue-pair bottom" id="clueBottom">
-                    <input type="text" maxlength="40" placeholder="Bottom clue (BL.bottom + BR.bottom)">
+                    <input type="text" maxlength="40" placeholder="Bottom clue">
                     <div class="text"></div>
                     <div class="hint"></div>
                 </div>
                 <div class="clue-pair left" id="clueLeft">
-                    <input type="text" maxlength="40" placeholder="Left clue (TL.left + BL.left)">
+                    <input type="text" maxlength="40" placeholder="Left">
                     <div class="text"></div>
                     <div class="hint"></div>
                 </div>
             </div>
 
-            <!-- Dock (to the right) -->
+            <!-- Dock -->
             <div class="dock-wrap">
-                <h2 class="dock-title">Tile Dock (drag from here)</h2>
+                <h2 class="dock-title">Tile Dock</h2>
                 <div id="tray" class="dock"></div>
             </div>
         </section>
@@ -721,11 +834,11 @@
         State
         ----------------------------*/
         const state = {
-            phase: "idle", // idle | clue | guess | complete
-            tiles: [], // [{id, words:[top,right,bottom,left]}] — includes decoy in guess phase
-            solution: { tl: null, tr: null, bl: null, br: null }, // { tileId, rotation }
-            placed: { tl: null, tr: null, bl: null, br: null }, // { tileId, rotation }
-            attempt: 0, // 0 none, 1 first, 2 second
+            phase: "idle",
+            tiles: [],
+            solution: { tl: null, tr: null, bl: null, br: null },
+            placed: { tl: null, tr: null, bl: null, br: null },
+            attempt: 0,
             roundScore: 0
         };
 
@@ -747,10 +860,10 @@
         function rotWords(words, r) {
             const w = words.slice(); r = r % 4;
             return [
-                [w[0], w[1], w[2], w[3]], // 0
-                [w[3], w[0], w[1], w[2]], // 1
-                [w[2], w[3], w[0], w[1]], // 2
-                [w[1], w[2], w[3], w[0]] // 3
+                [w[0], w[1], w[2], w[3]],
+                [w[3], w[0], w[1], w[2]],
+                [w[2], w[3], w[0], w[1]],
+                [w[1], w[2], w[3], w[0]]
             ][r];
         }
         function createTileElement(tile, rotation, { draggable = true, rotatable = true, dimInner = false, slotName = null } = {}) {
@@ -788,7 +901,6 @@
                     const [t, rn, b, l] = rotWords(tile.words, r);
                     edgeTop.textContent = t; edgeRight.textContent = rn; edgeBottom.textContent = b; edgeLeft.textContent = l;
 
-                    // Keep state.placed in sync if rotated in a slot
                     const parentSlotName = el.parentElement?.dataset?.slot;
                     if (parentSlotName) {
                         state.placed[parentSlotName] = { tileId: el.dataset.id, rotation: r };
@@ -827,7 +939,6 @@
             state.placed = { tl: null, tr: null, bl: null, br: null };
         }
 
-        /* Drop handlers — prevent dropping onto locked tiles; keep state.placed consistent */
         for (const [slotName, slotEl] of Object.entries(slots)) {
             slotEl.addEventListener("dragover", (e) => { e.preventDefault(); slotEl.classList.add("highlight"); });
             slotEl.addEventListener("dragleave", () => slotEl.classList.remove("highlight"));
@@ -840,17 +951,10 @@
                 if (!tileEl) return;
 
                 const existing = slotEl.querySelector(".tile");
-
-                // Don't allow dropping onto a slot that already has a locked tile
                 if (existing && existing.classList.contains("locked")) return;
-
-                // If slot contains a (non-locked) tile, move it back to tray
                 if (existing) trayEl.appendChild(existing);
-
-                // Can't drop a locked tile anywhere else
                 if (tileEl.classList.contains("locked")) return;
 
-                // Place tile and sync state
                 slotEl.appendChild(tileEl);
                 state.placed[slotName] = {
                     tileId: tileEl.dataset.id,
@@ -861,16 +965,14 @@
             });
         }
 
-        /* Enable dropping tiles back into the dock (drag off board) */
         trayEl.addEventListener("dragover", (e) => { e.preventDefault(); });
         trayEl.addEventListener("drop", (e) => {
             e.preventDefault();
             const data = JSON.parse(e.dataTransfer.getData("text/plain") || "{}");
             if (!data.tileId) return;
             const tileEl = document.querySelector(`.tile[data-id="${data.tileId}"]`);
-            if (!tileEl || tileEl.classList.contains("locked")) return; // don't move locked tiles
+            if (!tileEl || tileEl.classList.contains("locked")) return;
 
-            // If the tile was in a slot, clear that slot's state
             const parentSlotName = tileEl.parentElement?.dataset?.slot;
             if (parentSlotName) state.placed[parentSlotName] = null;
 
@@ -879,7 +981,7 @@
         });
 
         /* ---------------------------
-        Outside-edge clues (hide pair words until end)
+        Clues
         ----------------------------*/
         const clueRefs = {
             top: document.querySelector("#clueTop"),
@@ -903,7 +1005,6 @@
             clueRefs.bottom.querySelector(".hint").textContent = `Words: ${bottomPair}`;
             clueRefs.left.querySelector(".hint").textContent = `Words: ${leftPair}`;
 
-            // Ensure they are hidden initially
             setHintsVisible(false);
         }
         function setHintsVisible(visible) {
@@ -929,9 +1030,6 @@
             }
         }
 
-        /* ---------------------------
-        NEW: clear clue inputs & labels
-        ----------------------------*/
         function clearClueBoxes() {
             for (const dir of ["top", "right", "bottom", "left"]) {
                 const box = clueRefs[dir];
@@ -948,7 +1046,7 @@
         }
 
         /* ---------------------------
-        Gating buttons
+        Button gating
         ----------------------------*/
         const doneBtn = document.getElementById("doneBtn");
         const scoreBtn = document.getElementById("scoreBtn");
@@ -979,15 +1077,11 @@
         Round generation
         ----------------------------*/
         function newRound() {
-            // Clear clues from previous round
             clearClueBoxes();
-
-            // Build 5 tiles: first 4 are the solution, 5th is decoy
             clearBoardAndTray();
             nextTileId = 1;
             state.tiles = [];
 
-            // Shuffle word bank, take chunks of 4 words per tile
             const bank = shuffle(WORDS.slice(), Math.random);
 
             let idx = 0;
@@ -1006,7 +1100,6 @@
             const decoy = makeTile(take4());
             state.tiles.push(decoy);
 
-            // Random solution mapping for 4 slots (TL, TR, BL, BR) and rotations
             const slotNames = ["tl", "tr", "bl", "br"];
             const tilesShuffled = shuffle(solutionTiles.slice(), Math.random);
             const rotations = shuffle([0, 1, 2, 3], Math.random);
@@ -1015,7 +1108,6 @@
                 state.solution[slotNames[i]] = { tileId: tilesShuffled[i].id, rotation: rotations[i] };
             }
 
-            // Render tiles fixed (clue phase), dim inner edges
             for (const slotName of slotNames) {
                 const sol = state.solution[slotName];
                 const tile = solutionTiles.find(t => t.id === sol.tileId);
@@ -1023,10 +1115,9 @@
                 slots[slotName].appendChild(el);
             }
 
-            // Prepare outside-edge clues (pair words hidden)
             setClueHintsFromSolution();
-            showClueInputs(); // ensure inputs visible
-            setHintsVisible(false); // keep pair words hidden
+            showClueInputs();
+            setHintsVisible(false);
 
             state.roundScore = 0;
             document.getElementById("roundScore").textContent = "0";
@@ -1035,24 +1126,20 @@
             setPhase("clue");
             setAttempt(1);
 
-            // Gate the Done button until all 4 clues are entered
             updateDoneButtonState();
-
             scoreBtn.disabled = true;
-            log("Clue Phase: enter the 4 outside-edge clues. “Done” enables when all four are filled.");
+            log("Clue Phase: enter the 4 outside-edge clues. 'Done' enables when all four are filled.");
         }
 
         function startGuessPhase() {
             if (state.phase !== "clue") return;
 
-            // Switch clues to labels (still keep pair words hidden)
             showClueLabels();
             setHintsVisible(false);
 
-            // Remove tiles from board; build dock with the original 4 + 1 decoy
             document.querySelectorAll(".tile").forEach(el => el.remove());
             trayEl.innerHTML = "";
-            const tilesShuffled = shuffle(state.tiles.slice(), Math.random); // includes decoy
+            const tilesShuffled = shuffle(state.tiles.slice(), Math.random);
             for (const tile of tilesShuffled) {
                 const randomRot = Math.floor(Math.random() * 4);
                 const el = createTileElement(tile, randomRot, { draggable: true, rotatable: true });
@@ -1061,17 +1148,16 @@
 
             setPhase("guess");
             setAttempt(1);
-            doneBtn.disabled = true; // Done only for clue phase
+            doneBtn.disabled = true;
             updateScoreButtonState();
-            log("Resolution Phase: Drag cards to TL/TR/BL/BR. Click a card to rotate 90°. Drag off the board to return to the dock. Then click Score.");
+            log("Resolution Phase: Drag tiles to slots. Tap to rotate. Then click Score.");
         }
 
         /* ---------------------------
-        Scoring — uses live DOM state and gated Score
+        Scoring
         ----------------------------*/
         function scoreGuess() {
             if (state.phase !== "guess") return;
-            // Prevent scoring unless all tiles are placed
             updateScoreButtonState();
             if (scoreBtn.disabled) return;
 
@@ -1090,14 +1176,12 @@
                 const isCorrect = sol.tileId === placedId && sol.rotation === placedRot;
 
                 if (isCorrect) {
-                    // Lock if not already
                     if (!tileEl.classList.contains("locked")) {
                         tileEl.classList.add("locked");
                         tileEl.draggable = false;
                     }
                     lockedCount++;
                 } else {
-                    // Only eject if it's not locked (never eject a locked tile)
                     if (!tileEl.classList.contains("locked")) {
                         trayEl.appendChild(tileEl);
                         state.placed[slotName] = null;
@@ -1111,58 +1195,43 @@
                     document.getElementById("roundScore").textContent = state.roundScore;
                     setPhase("complete");
                     scoreBtn.disabled = true;
-                    // Reveal pair words now that the round is complete
                     setHintsVisible(true);
                     log("🎉 Perfect! All four cards correct on the first try. +6 points.");
                 } else {
                     setAttempt(2);
                     document.getElementById("scoreHint").textContent =
-                        "Second attempt: place remaining cards. You’ll score 1 point per correct card.";
+                        "Second attempt: place remaining cards. You'll score 1 point per correct card.";
                     log(`Locked ${lockedCount} correct card(s). Incorrect cards returned to the dock. Make your second attempt.`);
-                    // Require all slots filled again before scoring the second attempt
                     updateScoreButtonState();
                 }
             } else if (state.attempt === 2) {
-                // Count locked correct cards (some may have been locked in first attempt)
                 const lockedFinal = ["tl", "tr", "bl", "br"].filter(s => slots[s].querySelector(".tile.locked")).length;
-                state.roundScore = lockedFinal; // 0–4
+                state.roundScore = lockedFinal;
                 document.getElementById("roundScore").textContent = state.roundScore;
                 setPhase("complete");
                 scoreBtn.disabled = true;
-                // Reveal pair words now that the round is complete
                 setHintsVisible(true);
                 log(`Round complete. You scored ${lockedFinal} point(s) on the second attempt.`);
             }
         }
 
         /* ---------------------------
-        New Round button — gated with confirmation during active round
+        Event handlers
         ----------------------------*/
         document.getElementById("newRoundBtn").addEventListener("click", () => {
-            // Show confirmation only if the round is active (clue or guess)
             if (state.phase === "clue" || state.phase === "guess") {
                 const ok = window.confirm("Start a new round? This will discard the current round.");
                 if (!ok) return;
             }
-            // If idle or complete, no prompt
             newRound();
         });
 
-        /* ---------------------------
-        Wire up remaining controls
-        ----------------------------*/
         document.getElementById("doneBtn").addEventListener("click", startGuessPhase);
         document.getElementById("scoreBtn").addEventListener("click", scoreGuess);
 
-        /* Init */
-        (function init() {
-            setPhase("idle");
-            setAttempt(0);
-            document.getElementById("roundScore").textContent = "0";
-            document.getElementById("scoreHint").textContent = "";
-            log("Click “New Round” to begin.");
-        })();
-        // Collapsible scoring reference
+        /* ---------------------------
+        Scoring reference toggle
+        ----------------------------*/
         const scoreRefToggle = document.getElementById("scoreRefToggle");
         const scoreRefBody = document.getElementById("scoreRefBody");
 
@@ -1173,6 +1242,16 @@
             scoreRefToggle.textContent = `Scoring Reference ${isOpen ? "▾" : "▴"}`;
         });
 
+        /* ---------------------------
+        Init
+        ----------------------------*/
+        (function init() {
+            setPhase("idle");
+            setAttempt(0);
+            document.getElementById("roundScore").textContent = "0";
+            document.getElementById("scoreHint").textContent = "";
+            log("Click 'New Round' to begin.");
+        })();
     </script>
 
 </body>

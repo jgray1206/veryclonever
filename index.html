@@ -1205,7 +1205,8 @@
 
     function hostNextRound(playerIndex) {
         if (playerIndex >= players.length) {
-            broadcast({type: 'GAME_OVER', score: totalScore});
+            const result = getScoreResult(players.length, totalScore);
+            broadcast({ type: 'GAME_OVER', score: totalScore, result: result, playerCount: players.length });
             return;
         }
 
@@ -1227,18 +1228,18 @@
             attempt: 1,
             clues: boardData.clues,
             dock: pool,
-            slots: {tl: null, tr: null, bl: null, br: null},
+            slots: { tl: null, tr: null, bl: null, br: null },
             playerIndex: playerIndex
         };
 
-        broadcast({type: 'START_ROUND', state: roundState});
+        broadcast({ type: 'START_ROUND', state: roundState });
         handleStartRound(roundState);
     }
 
     function verifySolution(currentSlots) {
         const sol = activeSolution.solution;
         let correctCount = 0;
-        const feedback = {tl: false, tr: false, bl: false, br: false};
+        const feedback = { tl: false, tr: false, bl: false, br: false };
 
         ['tl', 'tr', 'bl', 'br'].forEach(pos => {
             const placed = currentSlots[pos];
@@ -1252,19 +1253,26 @@
         if (attemptCount === 1) {
             if (correctCount === 4) {
                 totalScore += 6;
-                broadcast({type: 'ROUND_RESULT', result: 'PERFECT', score: 6, feedback, total: totalScore});
+                broadcast({ type: 'ROUND_RESULT', result: 'PERFECT', score: 6, feedback, total: totalScore });
                 // Don't auto-advance - wait for host
             } else {
-                broadcast({type: 'ROUND_RESULT', result: 'TRY_AGAIN', feedback});
+                broadcast({ type: 'ROUND_RESULT', result: 'TRY_AGAIN', feedback });
                 attemptCount = 2;
             }
         } else {
             totalScore += correctCount;
-            broadcast({type: 'ROUND_RESULT', result: 'DONE', score: correctCount, feedback, total: totalScore});
+            // Send solution data for reveal
+            broadcast({
+                type: 'ROUND_RESULT',
+                result: 'DONE',
+                score: correctCount,
+                feedback,
+                total: totalScore,
+                solution: sol  // Include the correct solution
+            });
             // Don't auto-advance - wait for host
         }
     }
-
     /**
      * NETWORK HANDLERS
      */
@@ -1456,7 +1464,8 @@
                 els.nextBoardBtn.textContent = isLastBoard ? "End Game" : "Next Board";
                 els.nextBoardBtn.style.display = 'block';
             }
-        } else if (data.result === 'TRY_AGAIN') {
+        }
+        else if (data.result === 'TRY_AGAIN') {
             els.instruction.textContent = "Incorrect. Wrong tiles removed. 2nd Attempt!";
             els.instruction.style.color = 'var(--danger)';
             attemptCount = 2;
@@ -1478,8 +1487,40 @@
             });
 
             checkAllSlotsFilled();
-        } else if (data.result === 'DONE') {
+        }
+        else if (data.result === 'DONE') {
             els.instruction.textContent = `Round Done! +${data.score} Points.`;
+
+            // Reveal the solution
+            if (data.solution) {
+                ['tl', 'tr', 'bl', 'br'].forEach(slotKey => {
+                    const slot = document.querySelector(`.slot.${slotKey}`);
+                    const currentTile = slot.querySelector('.tile');
+                    const isCorrect = data.feedback[slotKey];
+                    const correctAnswer = data.solution[slotKey];
+
+                    if (isCorrect) {
+                        // Keep it green and locked
+                        if (currentTile) {
+                            currentTile.classList.add('locked');
+                        }
+                    } else {
+                        // Mark current as wrong (if exists) and show correct
+                        if (currentTile) {
+                            currentTile.style.borderColor = 'var(--danger)';
+                            currentTile.style.opacity = '0.5';
+                            currentTile.classList.add('locked');
+                        }
+
+                        // Place correct tile slightly offset or replace
+                        slot.innerHTML = ''; // Clear slot
+                        const correctTile = createTileEl(correctAnswer.tile, correctAnswer.rot, false, true);
+                        correctTile.style.borderColor = 'var(--ok)';
+                        slot.appendChild(correctTile);
+                    }
+                });
+            }
+
             document.querySelectorAll('.tile').forEach(t => t.classList.add('locked'));
             els.actionBtn.style.display = 'none';
 
@@ -1520,7 +1561,7 @@
     function verifyLocalSolution(currentSlots) {
         const sol = activeSolution.solution;
         let correctCount = 0;
-        const feedback = {tl: false, tr: false, bl: false, br: false};
+        const feedback = { tl: false, tr: false, bl: false, br: false };
 
         ['tl', 'tr', 'bl', 'br'].forEach(pos => {
             const placed = currentSlots[pos];
@@ -1534,13 +1575,20 @@
         if (attemptCount === 1) {
             if (correctCount === 4) {
                 totalScore += 6;
-                return {type: 'ROUND_RESULT', result: 'PERFECT', score: 6, feedback, total: totalScore};
+                return { type: 'ROUND_RESULT', result: 'PERFECT', score: 6, feedback, total: totalScore };
             } else {
-                return {type: 'ROUND_RESULT', result: 'TRY_AGAIN', feedback};
+                return { type: 'ROUND_RESULT', result: 'TRY_AGAIN', feedback };
             }
         } else {
             totalScore += correctCount;
-            return {type: 'ROUND_RESULT', result: 'DONE', score: correctCount, feedback, total: totalScore};
+            return {
+                type: 'ROUND_RESULT',
+                result: 'DONE',
+                score: correctCount,
+                feedback,
+                total: totalScore,
+                solution: sol  // Include the correct solution
+            };
         }
     }
 

@@ -1106,49 +1106,15 @@
             isReconnecting = false;
             resetPhaseDisplay();
 
-            // Re-setup connection listener
-            setupHostConnectionListener();
             startHeartbeat();
         });
 
-        peer.on('error', (err) => {
-            console.error('Host peer recreation error:', err);
-            if (err.type === 'unavailable-id') {
-                console.log('Peer ID unavailable, waiting before retry...');
-            }
-            setTimeout(() => {
-                isReconnecting = false;
-                attemptHostReconnect();
-            }, reconnectDelay * Math.min(reconnectAttempts, 5)); // Cap backoff at 5x
-        });
-
-        peer.on('disconnected', () => {
-            console.log('Host peer disconnected again');
-            if (!isReconnecting) {
-                setTimeout(attemptHostReconnect, 1000);
-            }
-        });
-    }
-
-    function resetPhaseDisplay() {
-        if (currentPhase === STATE.LOBBY) {
-            els.phaseDisplay.textContent = "Waiting...";
-        } else if (currentPhase === STATE.PREP) {
-            els.phaseDisplay.textContent = "Writing Clues...";
-        } else if (currentPhase === STATE.SOLVING) {
-            const spectatorName = players.find(p => p.id === activeSpectatorId)?.name || "Unknown";
-            els.phaseDisplay.textContent = `Solving ${spectatorName}'s Board`;
-        }
-    }
-
-    // Separate function for host connection listener setup
-    function setupHostConnectionListener() {
+        // Re-setup connection listener for new peer
         peer.on('connection', (c) => {
             connections[c.peer] = c;
             lastHeartbeat[c.peer] = Date.now();
 
             c.on('data', (data) => {
-                // Update heartbeat timestamp
                 if (data.type === 'HEARTBEAT') {
                     lastHeartbeat[c.peer] = Date.now();
                     return;
@@ -1185,6 +1151,35 @@
                 console.error(`Connection error with ${c.peer}:`, err);
             });
         });
+
+        peer.on('error', (err) => {
+            console.error('Host peer recreation error:', err);
+            if (err.type === 'unavailable-id') {
+                console.log('Peer ID unavailable, waiting before retry...');
+            }
+            setTimeout(() => {
+                isReconnecting = false;
+                attemptHostReconnect();
+            }, reconnectDelay * Math.min(reconnectAttempts, 5));
+        });
+
+        peer.on('disconnected', () => {
+            console.log('Host peer disconnected again');
+            if (!isReconnecting) {
+                setTimeout(attemptHostReconnect, 1000);
+            }
+        });
+    }
+
+    function resetPhaseDisplay() {
+        if (currentPhase === STATE.LOBBY) {
+            els.phaseDisplay.textContent = "Waiting...";
+        } else if (currentPhase === STATE.PREP) {
+            els.phaseDisplay.textContent = "Writing Clues...";
+        } else if (currentPhase === STATE.SOLVING) {
+            const spectatorName = players.find(p => p.id === activeSpectatorId)?.name || "Unknown";
+            els.phaseDisplay.textContent = `Solving ${spectatorName}'s Board`;
+        }
     }
 
     // Host: handle client reconnection
@@ -1747,8 +1742,51 @@
             players.push({ id: myPeerId, name: myName, status: 'waiting' });
             updateHostList();
 
-            setupHostConnectionListener();
             startHeartbeat();
+        });
+
+        // Set up connection listener directly (not in separate function)
+        peer.on('connection', (c) => {
+            connections[c.peer] = c;
+            lastHeartbeat[c.peer] = Date.now();
+
+            c.on('data', (data) => {
+                // Update heartbeat timestamp
+                if (data.type === 'HEARTBEAT') {
+                    lastHeartbeat[c.peer] = Date.now();
+                    return;
+                }
+
+                if (data.type === 'JOIN') {
+                    players.push({ id: c.peer, name: data.name, status: 'waiting' });
+                    lastHeartbeat[c.peer] = Date.now();
+                    updateHostList();
+                    broadcast({ type: 'PLAYER_UPDATE', players });
+                    els.startBtn.disabled = players.length < 2;
+                    els.startBtn.innerText = players.length < 2 ? "Waiting for players..." : "Start Game";
+                }
+                else if (data.type === 'REJOIN') {
+                    handleClientReconnect(c.peer, data);
+                }
+                else if (data.type === 'SUBMIT_BOARD') {
+                    handleBoardSubmission(c.peer, data.board);
+                }
+                else if (data.type === 'TILE_MOVE') {
+                    broadcast(data);
+                    handleTileMove(data);
+                }
+                else if (data.type === 'VERIFY') {
+                    verifySolution(data.slots);
+                }
+            });
+
+            c.on('close', () => {
+                console.log(`Client ${c.peer} disconnected`);
+            });
+
+            c.on('error', (err) => {
+                console.error(`Connection error with ${c.peer}:`, err);
+            });
         });
 
         peer.on('disconnected', () => {

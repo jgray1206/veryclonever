@@ -1180,12 +1180,12 @@
 
     function resetPhaseDisplay() {
         if (currentPhase === STATE.LOBBY) {
-            els.phaseDisplay.textContent = "Waiting...";
+            els.phaseDisplay.textContent = "Waiting for host to start...";
         } else if (currentPhase === STATE.PREP) {
-            els.phaseDisplay.textContent = "Writing Clues...";
+            els.phaseDisplay.textContent = "Writing clues...";
         } else if (currentPhase === STATE.SOLVING) {
             const spectatorName = players.find(p => p.id === activeSpectatorId)?.name || "Unknown";
-            els.phaseDisplay.textContent = `Solving ${spectatorName}'s Board`;
+            els.phaseDisplay.textContent = `Solving ${spectatorName}'s board`;
         }
     }
 

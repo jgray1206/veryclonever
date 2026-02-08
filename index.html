@@ -976,7 +976,7 @@
         }
     }
 
-    function connectToHost() {
+    function connectToHost(isInitialConnection = false) {
         console.log(`Connecting to host ${hostPeerId}...`);
 
         // Close old connection if exists
@@ -1005,12 +1005,19 @@
             // Initialize host heartbeat tracking
             lastHeartbeat['host'] = Date.now();
 
-            // Re-announce to host
-            conn.send({ type: 'REJOIN', name: myName, oldId: myPeerId });
+            // Send JOIN for first connection, REJOIN for reconnections
+            if (isInitialConnection) {
+                console.log('Sending JOIN message...');
+                conn.send({ type: 'JOIN', name: myName });
+            } else {
+                console.log('Sending REJOIN message...');
+                conn.send({ type: 'REJOIN', name: myName, oldId: myPeerId });
+            }
 
             // Hide reconnecting message if not in active game
             if (currentPhase === STATE.LOBBY || currentPhase === STATE.WAITING) {
                 els.waitingScreen.style.display = 'none';
+                els.lobbyModal.style.display = 'none';
             }
 
             startHeartbeat();
@@ -1906,7 +1913,8 @@
         peer = new Peer();
         peer.on('open', (id) => {
             myPeerId = id;
-            connectToHost();
+            // First time connecting - use JOIN, not REJOIN
+            connectToHost(true); // Pass true for initial connection
         });
 
         peer.on('disconnected', () => {

@@ -2075,17 +2075,19 @@
                     const correctAnswer = data.solution[slotKey];
 
                     if (isCorrect) {
-                        // Keep it green and locked
+                        // Correct slot - keep green border on slot
+                        slot.style.borderColor = 'var(--ok)';
+                        slot.style.borderWidth = '3px';
+                        slot.style.borderStyle = 'solid';
+
                         if (currentTile) {
                             currentTile.classList.add('locked');
                         }
                     } else {
-                        // Mark current tile as WRONG with red border
-                        if (currentTile) {
-                            currentTile.style.borderColor = 'var(--danger)';
-                            currentTile.style.borderWidth = '3px';
-                            currentTile.classList.add('locked');
-                        }
+                        // WRONG slot - highlight the SLOT with red border
+                        slot.style.borderColor = 'var(--danger)';
+                        slot.style.borderWidth = '3px';
+                        slot.style.borderStyle = 'solid';
 
                         // Find the correct tile in the dock and move it to the slot
                         const correctTileInDock = Array.from(els.dock.querySelectorAll('.tile'))
@@ -2095,21 +2097,23 @@
                             // Move correct tile from dock to slot
                             slot.appendChild(correctTileInDock);
 
-                            // Update its rotation and styling
+                            // Update its rotation and lock it
                             const originalWords = JSON.parse(correctTileInDock.dataset.originalWords || '[]');
                             updateTileVisuals(correctTileInDock, correctAnswer.rot, originalWords);
-                            correctTileInDock.style.borderColor = 'var(--ok)';
-                            correctTileInDock.style.borderWidth = '3px';
                             correctTileInDock.classList.add('locked');
 
                             // If there was a wrong tile, move it to dock
                             if (currentTile && currentTile !== correctTileInDock) {
                                 els.dock.appendChild(currentTile);
+                                currentTile.classList.add('locked');
                             }
                         } else {
                             // Correct tile not in dock (shouldn't happen, but handle gracefully)
                             console.warn(`Correct tile ${correctAnswer.tile.id} not found in dock for slot ${slotKey}`);
-                            // Keep wrong tile visible with red border as fallback
+                            // Lock whatever is there
+                            if (currentTile) {
+                                currentTile.classList.add('locked');
+                            }
                         }
                     }
                 });

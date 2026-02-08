@@ -508,6 +508,7 @@
             font-weight: bold;
             color: var(--accent);
         }
+
         @media (min-width: 768px) {
             main {
                 flex-direction: row;
@@ -556,22 +557,24 @@
     <div class="modal-content" id="hostView" style="display:none;">
         <h2>Lobby Created</h2>
         <p style="color:var(--muted)">Share this code:</p>
-        <div style="font-size: 2rem; color: var(--accent); font-family: monospace; margin: 10px 0; user-select: text;"
-             id="roomCodeDisplay">...</div>
+        <div id="roomCodeDisplay"
+             style="font-size: 2rem; color: var(--accent); font-family: monospace; margin: 10px 0; user-select: text;">...
+        </div>
         <p style="color:var(--muted); font-size: 0.9rem; margin: 10px 0;">Or share this link:</p>
         <div style="display: flex; gap: 8px; align-items: center; margin: 10px 0;">
-            <input type="text" id="shareLink" readonly style="flex: 1; font-size: 0.85rem; padding: 8px; cursor: pointer;" onclick="this.select()">
+            <input id="shareLink" onclick="this.select()" readonly
+                   style="flex: 1; font-size: 0.85rem; padding: 8px; cursor: pointer;" type="text">
             <button onclick="copyShareLink()" style="padding: 8px 12px;">Copy</button>
         </div>
         <div class="player-list" id="hostPlayerList"></div>
-        <button id="startBtn" onclick="hostStartGame()" disabled>Start Game (Waiting for players...)</button>
+        <button disabled id="startBtn" onclick="hostStartGame()">Start Game (Waiting for players...)</button>
     </div>
 
     <div class="modal-content" id="joinView" style="display:none;">
         <h2>Join Lobby</h2>
         <div class="input-group">
-            <input type="text" id="playerName" placeholder="Your Name" maxlength="30">
-            <input type="text" id="joinCode" placeholder="Room Code">
+            <input id="playerName" maxlength="30" placeholder="Your Name" type="text">
+            <input id="joinCode" placeholder="Room Code" type="text">
         </div>
         <button id="joinBtn" onclick="joinGame()">Join</button>
         <button class="secondary" onclick="backToStart()">Back</button>
@@ -613,10 +616,14 @@
                 <div class="slot bl" data-slot="bl"></div>
                 <div class="slot br" data-slot="br"></div>
 
-                <div class="clue-box top"><input id="clue-top" placeholder="Top Clue" type="text" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
-                <div class="clue-box right"><input id="clue-right" placeholder="Right Clue" type="text" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
-                <div class="clue-box bottom"><input id="clue-bottom" placeholder="Bottom Clue" type="text" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
-                <div class="clue-box left"><input id="clue-left" placeholder="Left Clue" type="text" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+                <div class="clue-box top"><input autocapitalize="off" autocomplete="off" id="clue-top" placeholder="Top Clue"
+                                                 spellcheck="false" type="text"></div>
+                <div class="clue-box right"><input autocapitalize="off" autocomplete="off" id="clue-right"
+                                                   placeholder="Right Clue" spellcheck="false" type="text"></div>
+                <div class="clue-box bottom"><input autocapitalize="off" autocomplete="off" id="clue-bottom"
+                                                    placeholder="Bottom Clue" spellcheck="false" type="text"></div>
+                <div class="clue-box left"><input autocapitalize="off" autocomplete="off" id="clue-left" placeholder="Left Clue"
+                                                  spellcheck="false" type="text"></div>
             </div>
         </div>
 
@@ -701,6 +708,15 @@
     let myName = "Player";
     let players = [];
 
+    // Reconnection state
+    let hostPeerId = null; // Store host ID for client reconnection
+    let reconnectAttempts = 0;
+    let maxReconnectAttempts = 10;
+    let reconnectDelay = 2000; // Start with 2 seconds
+    let isReconnecting = false;
+    let heartbeatInterval = null;
+    let lastHeartbeat = {};
+
     // Game Data
     let currentPhase = STATE.LOBBY;
     let myBoard = null;
@@ -763,7 +779,7 @@
         // Pick 4 unique words not in usedWords
         const availableWords = WORDS.filter(w => !usedWords.has(w));
         const shuffled = shuffle(availableWords);
-        return { id: id, words: shuffled.slice(0, 4) };
+        return {id: id, words: shuffled.slice(0, 4)};
     }
 
     function generateBoardTiles() {
@@ -771,56 +787,56 @@
         const allWords = getRandomWords(16);
 
         return [
-            { id: 't1', words: allWords.slice(0, 4) },
-            { id: 't2', words: allWords.slice(4, 8) },
-            { id: 't3', words: allWords.slice(8, 12) },
-            { id: 't4', words: allWords.slice(12, 16) }
+            {id: 't1', words: allWords.slice(0, 4)},
+            {id: 't2', words: allWords.slice(4, 8)},
+            {id: 't3', words: allWords.slice(8, 12)},
+            {id: 't4', words: allWords.slice(12, 16)}
         ];
     }
 
     function getScoreResult(playerCount, score) {
         const scoreTable = {
             1: [
-                { max: 2, result: '🌱 Small sprout' },
-                { max: 3, result: '🌿 Growth' },
-                { max: 4, result: '🌼 First bud' },
-                { max: 5, result: '🌸 Blossom' },
-                { max: Infinity, result: '🍀 Four-leaf clover' }
+                {max: 2, result: '🌱 Small sprout'},
+                {max: 3, result: '🌿 Growth'},
+                {max: 4, result: '🌼 First bud'},
+                {max: 5, result: '🌸 Blossom'},
+                {max: Infinity, result: '🍀 Four-leaf clover'}
             ],
             2: [
-                { max: 4, result: '🌱 Small sprout' },
-                { max: 6, result: '🌿 Growth' },
-                { max: 9, result: '🌼 First bud' },
-                { max: 11, result: '🌸 Blossom' },
-                { max: Infinity, result: '🍀 Four-leaf clover' }
+                {max: 4, result: '🌱 Small sprout'},
+                {max: 6, result: '🌿 Growth'},
+                {max: 9, result: '🌼 First bud'},
+                {max: 11, result: '🌸 Blossom'},
+                {max: Infinity, result: '🍀 Four-leaf clover'}
             ],
             3: [
-                { max: 6, result: '🌱 Small sprout' },
-                { max: 10, result: '🌿 Growth' },
-                { max: 14, result: '🌼 First bud' },
-                { max: 17, result: '🌸 Blossom' },
-                { max: Infinity, result: '🍀 Four-leaf clover' }
+                {max: 6, result: '🌱 Small sprout'},
+                {max: 10, result: '🌿 Growth'},
+                {max: 14, result: '🌼 First bud'},
+                {max: 17, result: '🌸 Blossom'},
+                {max: Infinity, result: '🍀 Four-leaf clover'}
             ],
             4: [
-                { max: 8, result: '🌱 Small sprout' },
-                { max: 14, result: '🌿 Growth' },
-                { max: 19, result: '🌼 First bud' },
-                { max: 23, result: '🌸 Blossom' },
-                { max: Infinity, result: '🍀 Four-leaf clover' }
+                {max: 8, result: '🌱 Small sprout'},
+                {max: 14, result: '🌿 Growth'},
+                {max: 19, result: '🌼 First bud'},
+                {max: 23, result: '🌸 Blossom'},
+                {max: Infinity, result: '🍀 Four-leaf clover'}
             ],
             5: [
-                { max: 10, result: '🌱 Small sprout' },
-                { max: 18, result: '🌿 Growth' },
-                { max: 24, result: '🌼 First bud' },
-                { max: 29, result: '🌸 Blossom' },
-                { max: Infinity, result: '🍀 Four-leaf clover' }
+                {max: 10, result: '🌱 Small sprout'},
+                {max: 18, result: '🌿 Growth'},
+                {max: 24, result: '🌼 First bud'},
+                {max: 29, result: '🌸 Blossom'},
+                {max: Infinity, result: '🍀 Four-leaf clover'}
             ],
             6: [
-                { max: 12, result: '🌱 Small sprout' },
-                { max: 22, result: '🌿 Growth' },
-                { max: 29, result: '🌼 First bud' },
-                { max: 35, result: '🌸 Blossom' },
-                { max: Infinity, result: '🍀 Four-leaf clover' }
+                {max: 12, result: '🌱 Small sprout'},
+                {max: 22, result: '🌿 Growth'},
+                {max: 29, result: '🌼 First bud'},
+                {max: 35, result: '🌸 Blossom'},
+                {max: Infinity, result: '🍀 Four-leaf clover'}
             ]
         };
 
@@ -852,6 +868,389 @@
 
     // Call on page load
     window.addEventListener('DOMContentLoaded', checkURLParams);
+
+    // Heartbeat system to detect dead connections
+    function startHeartbeat() {
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
+
+        heartbeatInterval = setInterval(() => {
+            const now = Date.now();
+
+            if (isHost) {
+                // Host: check all client connections
+                Object.entries(connections).forEach(([peerId, connection]) => {
+                    if (connection.open) {
+                        connection.send({ type: 'HEARTBEAT', timestamp: now });
+
+                        // Check if we haven't heard from this client in 15 seconds
+                        if (lastHeartbeat[peerId] && now - lastHeartbeat[peerId] > 15000) {
+                            console.log(`Connection to ${peerId} seems dead, removing...`);
+                            delete connections[peerId];
+                            delete lastHeartbeat[peerId];
+
+                            // Remove from players list and update
+                            players = players.filter(p => p.id !== peerId);
+                            if (currentPhase === STATE.LOBBY) {
+                                updateHostList();
+                                els.startBtn.disabled = players.length < 2;
+                            }
+                            broadcast({ type: 'PLAYER_UPDATE', players });
+                        }
+                    }
+                });
+            } else if (conn && conn.open) {
+                // Client: send heartbeat to host
+                conn.send({ type: 'HEARTBEAT', timestamp: now });
+
+                // Check if we've received a heartbeat from host recently
+                if (lastHeartbeat['host']) {
+                    const timeSinceHostHeartbeat = now - lastHeartbeat['host'];
+                    if (timeSinceHostHeartbeat > 12000) {
+                        // Haven't heard from host in 12 seconds
+                        console.warn('No heartbeat from host for', timeSinceHostHeartbeat, 'ms');
+                        if (!isReconnecting) {
+                            console.log('Attempting reconnect due to missing heartbeats...');
+                            attemptReconnect();
+                        }
+                    }
+                }
+            } else if (!isLocalMode && !isHost && !isReconnecting) {
+                // Client connection is closed, try to reconnect
+                console.log('Connection closed, attempting reconnect...');
+                attemptReconnect();
+            }
+        }, 5000); // Check every 5 seconds
+    }
+
+    // Client reconnection logic
+    // Client reconnection logic
+    function attemptReconnect() {
+        if (isReconnecting || !hostPeerId || isHost || isLocalMode) return;
+
+        isReconnecting = true;
+        reconnectAttempts++;
+
+        console.log(`Reconnection attempt ${reconnectAttempts}/${maxReconnectAttempts} to host ${hostPeerId}...`);
+
+        if (reconnectAttempts > maxReconnectAttempts) {
+            showWaiting("Connection Lost", "Cannot reach host. Please refresh and rejoin.");
+            isReconnecting = false;
+            return;
+        }
+
+        // Show reconnecting message
+        showWaiting("Reconnecting...", `Attempt ${reconnectAttempts}/${maxReconnectAttempts}`);
+
+        // Create new peer if needed or if current one is destroyed
+        if (!peer || peer.destroyed) {
+            peer = new Peer();
+
+            peer.on('open', (id) => {
+                myPeerId = id;
+                console.log('Client peer created with ID:', id);
+                connectToHost();
+            });
+
+            peer.on('error', (err) => {
+                console.error('Peer error during reconnect:', err);
+                setTimeout(() => {
+                    isReconnecting = false;
+                    attemptReconnect();
+                }, reconnectDelay * Math.min(reconnectAttempts, 5));
+            });
+        } else if (peer.disconnected) {
+            // Try to reconnect existing peer
+            console.log('Reconnecting existing peer...');
+            peer.reconnect();
+            setTimeout(() => {
+                if (peer.disconnected) {
+                    // Reconnect failed, try connecting to host anyway
+                    connectToHost();
+                } else {
+                    connectToHost();
+                }
+            }, 1000);
+        } else {
+            // Peer is fine, just need to reconnect to host
+            connectToHost();
+        }
+    }
+
+    function connectToHost() {
+        console.log(`Connecting to host ${hostPeerId}...`);
+
+        // Close old connection if exists
+        if (conn && conn.open) {
+            conn.close();
+        }
+
+        conn = peer.connect(hostPeerId, {
+            reliable: true
+        });
+
+        let connectionTimeout = setTimeout(() => {
+            if (!conn || !conn.open) {
+                console.log('Connection timeout');
+                isReconnecting = false;
+                setTimeout(attemptReconnect, reconnectDelay);
+            }
+        }, 5000);
+
+        conn.on('open', () => {
+            clearTimeout(connectionTimeout);
+            console.log('Connected to host!');
+            reconnectAttempts = 0;
+            isReconnecting = false;
+
+            // Initialize host heartbeat tracking
+            lastHeartbeat['host'] = Date.now();
+
+            // Re-announce to host
+            conn.send({ type: 'REJOIN', name: myName, oldId: myPeerId });
+
+            // Hide reconnecting message if not in active game
+            if (currentPhase === STATE.LOBBY || currentPhase === STATE.WAITING) {
+                els.waitingScreen.style.display = 'none';
+            }
+
+            startHeartbeat();
+        });
+
+        conn.on('close', () => {
+            console.log('Connection to host closed');
+            if (!isReconnecting && currentPhase !== STATE.LOBBY) {
+                setTimeout(attemptReconnect, reconnectDelay);
+            }
+        });
+
+        conn.on('error', (err) => {
+            clearTimeout(connectionTimeout);
+            console.error('Connection error:', err);
+            if (!isReconnecting) {
+                isReconnecting = false;
+                setTimeout(attemptReconnect, reconnectDelay);
+            }
+        });
+
+        conn.on('data', handleData);
+    }
+
+    // Host reconnection logic - MUST maintain same ID
+    function attemptHostReconnect() {
+        if (isReconnecting || !isHost) return;
+
+        isReconnecting = true;
+        reconnectAttempts++;
+
+        console.log(`Host reconnection attempt ${reconnectAttempts}/${maxReconnectAttempts}...`);
+
+        if (reconnectAttempts > maxReconnectAttempts) {
+            alert('Failed to restore host connection. Please restart the game.');
+            isReconnecting = false;
+            reconnectAttempts = 0;
+            return;
+        }
+
+        els.phaseDisplay.textContent = `Reconnecting... (${reconnectAttempts}/${maxReconnectAttempts})`;
+
+        // Try to reconnect existing peer first
+        if (peer && !peer.destroyed) {
+            console.log('Attempting peer.reconnect()...');
+            peer.reconnect();
+
+            // Check if reconnect worked after 2 seconds
+            setTimeout(() => {
+                if (peer.disconnected) {
+                    console.log('peer.reconnect() failed, recreating peer...');
+                    recreateHostPeer();
+                } else {
+                    console.log('peer.reconnect() succeeded!');
+                    reconnectAttempts = 0;
+                    isReconnecting = false;
+                    resetPhaseDisplay();
+                }
+            }, 2000);
+        } else {
+            recreateHostPeer();
+        }
+    }
+
+    function recreateHostPeer() {
+        // Destroy old peer if exists
+        if (peer) {
+            peer.destroy();
+        }
+
+        // CRITICAL: Try to reclaim the same peer ID
+        peer = new Peer(hostPeerId, {
+            debug: 2 // Enable debug logging
+        });
+
+        peer.on('open', (id) => {
+            console.log('Host peer recreated with ID:', id);
+
+            if (id !== hostPeerId) {
+                // This is bad - we got a different ID, clients can't reconnect
+                console.error('CRITICAL: Host ID changed from', hostPeerId, 'to', id);
+                alert(`Host ID changed! Clients must reconnect to new code: ${id}\nOld code will not work.`);
+                myPeerId = id;
+                hostPeerId = id;
+                els.roomCode.innerText = id;
+                const shareURL = `${window.location.origin}${window.location.pathname}?room=${id}`;
+                document.getElementById('shareLink').value = shareURL;
+            } else {
+                console.log('Successfully reclaimed same host ID!');
+            }
+
+            reconnectAttempts = 0;
+            isReconnecting = false;
+            resetPhaseDisplay();
+
+            // Re-setup connection listener
+            setupHostConnectionListener();
+            startHeartbeat();
+        });
+
+        peer.on('error', (err) => {
+            console.error('Host peer recreation error:', err);
+            if (err.type === 'unavailable-id') {
+                console.log('Peer ID unavailable, waiting before retry...');
+            }
+            setTimeout(() => {
+                isReconnecting = false;
+                attemptHostReconnect();
+            }, reconnectDelay * Math.min(reconnectAttempts, 5)); // Cap backoff at 5x
+        });
+
+        peer.on('disconnected', () => {
+            console.log('Host peer disconnected again');
+            if (!isReconnecting) {
+                setTimeout(attemptHostReconnect, 1000);
+            }
+        });
+    }
+
+    function resetPhaseDisplay() {
+        if (currentPhase === STATE.LOBBY) {
+            els.phaseDisplay.textContent = "Waiting...";
+        } else if (currentPhase === STATE.PREP) {
+            els.phaseDisplay.textContent = "Writing Clues...";
+        } else if (currentPhase === STATE.SOLVING) {
+            const spectatorName = players.find(p => p.id === activeSpectatorId)?.name || "Unknown";
+            els.phaseDisplay.textContent = `Solving ${spectatorName}'s Board`;
+        }
+    }
+
+    // Separate function for host connection listener setup
+    function setupHostConnectionListener() {
+        peer.on('connection', (c) => {
+            connections[c.peer] = c;
+            lastHeartbeat[c.peer] = Date.now();
+
+            c.on('data', (data) => {
+                // Update heartbeat timestamp
+                if (data.type === 'HEARTBEAT') {
+                    lastHeartbeat[c.peer] = Date.now();
+                    return;
+                }
+
+                if (data.type === 'JOIN') {
+                    players.push({ id: c.peer, name: data.name, status: 'waiting' });
+                    lastHeartbeat[c.peer] = Date.now();
+                    updateHostList();
+                    broadcast({ type: 'PLAYER_UPDATE', players });
+                    els.startBtn.disabled = players.length < 2;
+                    els.startBtn.innerText = players.length < 2 ? "Waiting for players..." : "Start Game";
+                }
+                else if (data.type === 'REJOIN') {
+                    handleClientReconnect(c.peer, data);
+                }
+                else if (data.type === 'SUBMIT_BOARD') {
+                    handleBoardSubmission(c.peer, data.board);
+                }
+                else if (data.type === 'TILE_MOVE') {
+                    broadcast(data);
+                    handleTileMove(data);
+                }
+                else if (data.type === 'VERIFY') {
+                    verifySolution(data.slots);
+                }
+            });
+
+            c.on('close', () => {
+                console.log(`Client ${c.peer} disconnected`);
+            });
+
+            c.on('error', (err) => {
+                console.error(`Connection error with ${c.peer}:`, err);
+            });
+        });
+    }
+
+    // Host: handle client reconnection
+    function handleClientReconnect(newPeerId, data) {
+        // Update player ID in list
+        const player = players.find(p => p.name === data.name);
+        if (player) {
+            const oldId = player.id;
+            player.id = newPeerId;
+
+            // Update connections
+            if (connections[oldId]) {
+                delete connections[oldId];
+            }
+
+            // Connection is already set up by peer.on('connection')
+            console.log(`${data.name} reconnected (${oldId} -> ${newPeerId})`);
+
+            // Send current game state to reconnected player
+            broadcast({type: 'PLAYER_UPDATE', players});
+
+            // If in game, send current round state
+            if (currentPhase === STATE.SOLVING && activeSolution) {
+                const roundState = {
+                    spectatorId: activeSpectatorId,
+                    attempt: attemptCount,
+                    clues: activeSolution.clues,
+                    dock: getCurrentDockTiles(),
+                    slots: getCurrentSlots(),
+                    playerIndex: players.findIndex(p => p.id === activeSpectatorId)
+                };
+                connections[newPeerId].send({type: 'START_ROUND', state: roundState});
+            }
+        }
+    }
+
+    // Helper to get current dock tiles
+    function getCurrentDockTiles() {
+        const tiles = [];
+        els.dock.querySelectorAll('.tile').forEach(tileEl => {
+            const id = tileEl.dataset.id;
+            const words = JSON.parse(tileEl.dataset.originalWords || '[]');
+            tiles.push({id, words});
+        });
+        return tiles;
+    }
+
+    // Helper to get current slot states
+    function getCurrentSlots() {
+        const slots = {tl: null, tr: null, bl: null, br: null};
+        ['tl', 'tr', 'bl', 'br'].forEach(slotKey => {
+            const slot = document.querySelector(`.slot.${slotKey}`);
+            const tileEl = slot.querySelector('.tile');
+            if (tileEl) {
+                const id = tileEl.dataset.id;
+                const words = JSON.parse(tileEl.dataset.originalWords || '[]');
+                const rot = parseInt(tileEl.dataset.rot);
+                slots[slotKey] = {
+                    tile: {id, words},
+                    rot,
+                    locked: tileEl.classList.contains('locked')
+                };
+            }
+        });
+        return slots;
+    }
 
     function startLocalGame() {
         isLocalMode = true;
@@ -1239,7 +1638,7 @@
     function hostNextRound(playerIndex) {
         if (playerIndex >= players.length) {
             const result = getScoreResult(players.length, totalScore);
-            broadcast({ type: 'GAME_OVER', score: totalScore, result: result, playerCount: players.length });
+            broadcast({type: 'GAME_OVER', score: totalScore, result: result, playerCount: players.length});
             return;
         }
 
@@ -1261,18 +1660,18 @@
             attempt: 1,
             clues: boardData.clues,
             dock: pool,
-            slots: { tl: null, tr: null, bl: null, br: null },
+            slots: {tl: null, tr: null, bl: null, br: null},
             playerIndex: playerIndex
         };
 
-        broadcast({ type: 'START_ROUND', state: roundState });
+        broadcast({type: 'START_ROUND', state: roundState});
         handleStartRound(roundState);
     }
 
     function verifySolution(currentSlots) {
         const sol = activeSolution.solution;
         let correctCount = 0;
-        const feedback = { tl: false, tr: false, bl: false, br: false };
+        const feedback = {tl: false, tr: false, bl: false, br: false};
 
         ['tl', 'tr', 'bl', 'br'].forEach(pos => {
             const placed = currentSlots[pos];
@@ -1286,10 +1685,10 @@
         if (attemptCount === 1) {
             if (correctCount === 4) {
                 totalScore += 6;
-                broadcast({ type: 'ROUND_RESULT', result: 'PERFECT', score: 6, feedback, total: totalScore });
+                broadcast({type: 'ROUND_RESULT', result: 'PERFECT', score: 6, feedback, total: totalScore});
                 // Don't auto-advance - wait for host
             } else {
-                broadcast({ type: 'ROUND_RESULT', result: 'TRY_AGAIN', feedback });
+                broadcast({type: 'ROUND_RESULT', result: 'TRY_AGAIN', feedback});
                 attemptCount = 2;
             }
         } else {
@@ -1306,6 +1705,7 @@
             // Don't auto-advance - wait for host
         }
     }
+
     /**
      * NETWORK HANDLERS
      */
@@ -1334,6 +1734,7 @@
 
         peer.on('open', (id) => {
             myPeerId = id;
+            hostPeerId = id; // Store for reconnection
             els.roomCode.innerText = id;
 
             // Generate shareable link
@@ -1345,54 +1746,96 @@
 
             players.push({ id: myPeerId, name: myName, status: 'waiting' });
             updateHostList();
+
+            setupHostConnectionListener();
+            startHeartbeat();
         });
 
-        peer.on('connection', (c) => {
-            connections[c.peer] = c;
-            c.on('data', (data) => {
-                if (data.type === 'JOIN') {
-                    players.push({ id: c.peer, name: data.name, status: 'waiting' });
-                    updateHostList();
-                    // Send full player list to all clients
-                    broadcast({ type: 'PLAYER_UPDATE', players });
-                    els.startBtn.disabled = players.length < 2;
-                    els.startBtn.innerText = players.length < 2 ? "Waiting for players..." : "Start Game";
+        peer.on('disconnected', () => {
+            console.log('Host peer disconnected!');
+            if (!peer.destroyed && !isReconnecting) {
+                console.log('Attempting to reconnect host peer...');
+                // First try simple reconnect
+                peer.reconnect();
+
+                // If that doesn't work within 3 seconds, do full reconnect
+                setTimeout(() => {
+                    if (peer.disconnected && !isReconnecting) {
+                        attemptHostReconnect();
+                    }
+                }, 3000);
+            }
+        });
+
+        peer.on('error', (err) => {
+            console.error('Host peer error:', err);
+            if (err.type === 'disconnected' || err.type === 'network') {
+                if (!isReconnecting) {
+                    attemptHostReconnect();
                 }
-                else if (data.type === 'SUBMIT_BOARD') {
-                    handleBoardSubmission(c.peer, data.board);
-                }
-                else if (data.type === 'TILE_MOVE') {
-                    // Relay
-                    broadcast(data);
-                    handleTileMove(data);
-                }
-                else if (data.type === 'VERIFY') {
-                    verifySolution(data.slots);
-                }
-            });
+            } else if (err.type === 'peer-unavailable') {
+                console.log('Client connection failed');
+            }
         });
     }
 
-    // NEW: Copy share link to clipboard
     function copyShareLink() {
         const linkInput = document.getElementById('shareLink');
-        linkInput.select();
-        linkInput.setSelectionRange(0, 99999); // For mobile
+        const copyBtn = document.querySelector('button[onclick="copyShareLink()"]');
 
-        navigator.clipboard.writeText(linkInput.value).then(() => {
-            // Visual feedback
-            const btn = event.target;
-            const originalText = btn.textContent;
-            btn.textContent = 'Copied!';
-            btn.style.background = 'var(--ok)';
-            setTimeout(() => {
-                btn.textContent = originalText;
-                btn.style.background = '';
-            }, 2000);
-        }).catch(err => {
-            alert('Failed to copy. Please copy manually.');
-        });
+        // Method 1: Modern Clipboard API (works on HTTPS and localhost)
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(linkInput.value)
+                .then(() => {
+                    showCopyFeedback(copyBtn);
+                })
+                .catch(err => {
+                    console.error('Clipboard API failed:', err);
+                    // Fallback to selection method
+                    fallbackCopy(linkInput, copyBtn);
+                });
+        } else {
+            // Fallback for older browsers or non-HTTPS
+            fallbackCopy(linkInput, copyBtn);
+        }
     }
+
+    function fallbackCopy(input, btn) {
+        try {
+            input.select();
+            input.setSelectionRange(0, 99999); // For mobile devices
+
+            // Try execCommand as fallback
+            const successful = document.execCommand('copy');
+
+            if (successful) {
+                showCopyFeedback(btn);
+            } else {
+                alert('Please manually copy the link: ' + input.value);
+            }
+        } catch (err) {
+            console.error('Fallback copy failed:', err);
+            alert('Please manually copy the link: ' + input.value);
+        }
+    }
+
+    function showCopyFeedback(btn) {
+        if (!btn) return;
+
+        const originalText = btn.textContent;
+        const originalBg = btn.style.background;
+
+        btn.textContent = 'Copied!';
+        btn.style.background = 'var(--ok)';
+        btn.style.color = '#000';
+
+        setTimeout(() => {
+            btn.textContent = originalText;
+            btn.style.background = originalBg;
+            btn.style.color = '';
+        }, 2000);
+    }
+
 
     function setupJoin() {
         els.startView.style.display = 'none';
@@ -1416,6 +1859,8 @@
             return;
         }
 
+        hostPeerId = code; // Store for reconnection
+
         // Disable button immediately
         els.joinBtn.disabled = true;
         els.joinBtn.textContent = "Connecting...";
@@ -1423,27 +1868,24 @@
         peer = new Peer();
         peer.on('open', (id) => {
             myPeerId = id;
-            conn = peer.connect(code);
+            connectToHost();
+        });
 
-            conn.on('open', () => {
-                els.lobbyModal.style.display = 'none';
-                showWaiting("Connected", "Waiting for host to start...");
-                conn.send({ type: 'JOIN', name: myName });
-            });
-
-            conn.on('error', (err) => {
-                alert('Failed to connect. Check the room code.');
-                els.joinBtn.disabled = false;
-                els.joinBtn.textContent = "Join";
-            });
-
-            conn.on('data', handleData);
+        peer.on('disconnected', () => {
+            console.log('Client peer disconnected');
+            if (!peer.destroyed && !isReconnecting) {
+                console.log('Attempting to reconnect peer...');
+                peer.reconnect();
+            }
         });
 
         peer.on('error', (err) => {
-            alert('Connection error. Please try again.');
-            els.joinBtn.disabled = false;
-            els.joinBtn.textContent = "Join";
+            console.error('Client peer error:', err);
+            if (!conn || !conn.open) {
+                alert('Connection error. Please try again.');
+                els.joinBtn.disabled = false;
+                els.joinBtn.textContent = "Join";
+            }
         });
     }
 
@@ -1453,23 +1895,41 @@
     }
 
     function handleData(data) {
+        // Handle heartbeat
+        if (data.type === 'HEARTBEAT') {
+            // Track that we received a heartbeat from host
+            if (!isHost) {
+                lastHeartbeat['host'] = Date.now();
+            }
+
+            // Respond to heartbeat
+            if (!isHost && conn && conn.open) {
+                conn.send({ type: 'HEARTBEAT_ACK', timestamp: Date.now() });
+            }
+            return;
+        }
+
+        if (data.type === 'HEARTBEAT_ACK') {
+            // Host received acknowledgment from client
+            return;
+        }
         if (data.type === 'PLAYER_UPDATE') {
             players = data.players; // Update client's player list
-        }
-        else if (data.type === 'START_PREP') {
+        } else if (data.type === 'START_PREP') {
             if (data.players) players = data.players; // Sync players at game start
             startPrepPhase();
-        }
-        else if (data.type === 'START_ROUND') { handleStartRound(data.state); }
-        else if (data.type === 'TILE_MOVE') { handleTileMove(data); }
-        else if (data.type === 'ROUND_RESULT') { handleRoundResult(data); }
-        else if (data.type === 'PLAY_AGAIN') {
+        } else if (data.type === 'START_ROUND') {
+            handleStartRound(data.state);
+        } else if (data.type === 'TILE_MOVE') {
+            handleTileMove(data);
+        } else if (data.type === 'ROUND_RESULT') {
+            handleRoundResult(data);
+        } else if (data.type === 'PLAY_AGAIN') {
             totalScore = 0;
             els.scoreDisplay.textContent = 'Score: 0';
             els.playAgainBtn.style.display = 'none';
             els.nextBoardBtn.style.display = 'none';
-        }
-        else if (data.type === 'GAME_OVER') {
+        } else if (data.type === 'GAME_OVER') {
             els.waitingScreen.style.display = 'grid';
             els.waitTitle.textContent = "Game Over!";
             els.waitMsg.textContent = `Total Team Score: ${data.score}`;
@@ -1535,8 +1995,7 @@
                 els.instruction.textContent = "Perfect! +6 Points!\nWaiting for host to continue...";
                 els.instruction.style.color = 'var(--muted)';
             }
-        }
-        else if (data.result === 'TRY_AGAIN') {
+        } else if (data.result === 'TRY_AGAIN') {
             els.instruction.textContent = "Incorrect. Wrong tiles removed. 2nd Attempt!";
             els.instruction.style.color = 'var(--danger)';
             attemptCount = 2;
@@ -1558,8 +2017,7 @@
             });
 
             checkAllSlotsFilled();
-        }
-        else if (data.result === 'DONE') {
+        } else if (data.result === 'DONE') {
             els.instruction.textContent = `Round Done! +${data.score} Points.`;
 
             // Reveal the solution
@@ -1576,18 +2034,37 @@
                             currentTile.classList.add('locked');
                         }
                     } else {
-                        // Mark current as wrong (if exists) and show correct
+                        // Mark current tile as WRONG with red border
                         if (currentTile) {
                             currentTile.style.borderColor = 'var(--danger)';
-                            currentTile.style.opacity = '0.5';
+                            currentTile.style.borderWidth = '3px';
                             currentTile.classList.add('locked');
                         }
 
-                        // Place correct tile slightly offset or replace
-                        slot.innerHTML = ''; // Clear slot
-                        const correctTile = createTileEl(correctAnswer.tile, correctAnswer.rot, false, true);
-                        correctTile.style.borderColor = 'var(--ok)';
-                        slot.appendChild(correctTile);
+                        // Find the correct tile in the dock and move it to the slot
+                        const correctTileInDock = Array.from(els.dock.querySelectorAll('.tile'))
+                            .find(t => t.dataset.id === correctAnswer.tile.id);
+
+                        if (correctTileInDock) {
+                            // Move correct tile from dock to slot
+                            slot.appendChild(correctTileInDock);
+
+                            // Update its rotation and styling
+                            const originalWords = JSON.parse(correctTileInDock.dataset.originalWords || '[]');
+                            updateTileVisuals(correctTileInDock, correctAnswer.rot, originalWords);
+                            correctTileInDock.style.borderColor = 'var(--ok)';
+                            correctTileInDock.style.borderWidth = '3px';
+                            correctTileInDock.classList.add('locked');
+
+                            // If there was a wrong tile, move it to dock
+                            if (currentTile && currentTile !== correctTileInDock) {
+                                els.dock.appendChild(currentTile);
+                            }
+                        } else {
+                            // Correct tile not in dock (shouldn't happen, but handle gracefully)
+                            console.warn(`Correct tile ${correctAnswer.tile.id} not found in dock for slot ${slotKey}`);
+                            // Keep wrong tile visible with red border as fallback
+                        }
                     }
                 });
             }
@@ -1636,7 +2113,7 @@
     function verifyLocalSolution(currentSlots) {
         const sol = activeSolution.solution;
         let correctCount = 0;
-        const feedback = { tl: false, tr: false, bl: false, br: false };
+        const feedback = {tl: false, tr: false, bl: false, br: false};
 
         ['tl', 'tr', 'bl', 'br'].forEach(pos => {
             const placed = currentSlots[pos];
@@ -1650,9 +2127,9 @@
         if (attemptCount === 1) {
             if (correctCount === 4) {
                 totalScore += 6;
-                return { type: 'ROUND_RESULT', result: 'PERFECT', score: 6, feedback, total: totalScore };
+                return {type: 'ROUND_RESULT', result: 'PERFECT', score: 6, feedback, total: totalScore};
             } else {
-                return { type: 'ROUND_RESULT', result: 'TRY_AGAIN', feedback };
+                return {type: 'ROUND_RESULT', result: 'TRY_AGAIN', feedback};
             }
         } else {
             totalScore += correctCount;
@@ -1809,6 +2286,36 @@
         els.waitTitle.textContent = title;
         els.waitMsg.textContent = msg;
     }
+
+    // Handle page visibility changes (important for mobile)
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            console.log('Page hidden - connections may be suspended');
+        } else {
+            console.log('Page visible - checking connections');
+
+            if (!isLocalMode) {
+                if (isHost) {
+                    // Check if host peer is still connected
+                    if (peer && peer.disconnected && !isReconnecting) {
+                        console.log('Host peer disconnected while backgrounded, reconnecting...');
+                        attemptHostReconnect();
+                    }
+                } else {
+                    // Client reconnection
+                    if (conn && !conn.open && !isReconnecting) {
+                        console.log('Connection lost while backgrounded, reconnecting...');
+                        attemptReconnect();
+                    }
+                }
+
+                // Restart heartbeat if needed
+                if (!heartbeatInterval) {
+                    startHeartbeat();
+                }
+            }
+        }
+    });
 
 </script>
 </body>

@@ -300,7 +300,6 @@
             left: 10%;
             width: 80%;
             height: 20%;
-            transform: rotate(180deg);
         }
 
         .edge.left {
@@ -536,7 +535,7 @@
 
 <div class="modal" id="lobbyModal">
     <div class="modal-content" id="startView">
-        <h1>🍀 So Clover!</h1>
+        <h1>So Clonever!</h1>
         <p>Cooperative Multiplayer</p>
         <div style="display: flex; gap: 10px; justify-content: center; margin-top: 20px;">
             <button onclick="setupHost()">Create Lobby</button>
@@ -582,7 +581,7 @@
 </div>
 
 <header>
-    <h1>🍀 So Clover</h1>
+    <h1>So Clonever</h1>
     <div class="controls">
         <button id="actionBtn" style="display:none;">Submit Clues</button>
         <button class="secondary" id="nextBoardBtn" onclick="handleNextBoard()" style="display:none;">Next Board
@@ -1418,8 +1417,13 @@
             }
         });
 
-        // 2. Clear Slots & Dock
-        document.querySelectorAll('.slot').forEach(s => s.innerHTML = '');
+        // 2. Clear Slots & Dock - RESET STYLING
+        document.querySelectorAll('.slot').forEach(s => {
+            s.innerHTML = '';
+            s.style.borderColor = '';
+            s.style.borderWidth = '';
+            s.style.borderStyle = '';
+        });
         els.dock.innerHTML = '';
 
         // 3. Place Tiles
@@ -1446,6 +1450,7 @@
      */
 
     // --- PHASE 1: PREP (Individual) ---
+    // --- PHASE 1: PREP (Individual) ---
     function startPrepPhase() {
         currentPhase = STATE.PREP;
         els.lobbyModal.style.display = 'none';
@@ -1465,11 +1470,18 @@
         const slots = ['tl', 'tr', 'bl', 'br'];
         shuffle(slots); // Randomize slot assignment
 
-
         myBoard = {
             solution: {},
             clues: {top: '', right: '', bottom: '', left: ''}
         };
+
+        // Reset all slot styling before placing tiles
+        document.querySelectorAll('.slot').forEach(slot => {
+            slot.style.borderColor = '';
+            slot.style.borderWidth = '';
+            slot.style.borderStyle = '';
+            slot.innerHTML = '';
+        });
 
         // Place them visually in slots immediately (fixed for Prep)
         slots.forEach((s, i) => {
@@ -1477,7 +1489,6 @@
             myBoard.solution[s] = {tile: tiles[i], rot: rot};
 
             const slotEl = document.querySelector(`.slot.${s}`);
-            slotEl.innerHTML = '';
             slotEl.appendChild(createTileEl(tiles[i], rot, false, true)); // Not draggable in prep
         });
 

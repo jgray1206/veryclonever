@@ -223,6 +223,8 @@
             position: relative;
             cursor: grab;
             user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
             touch-action: none;
             z-index: 10;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
@@ -281,6 +283,9 @@
             align-items: center;
             justify-content: center;
             pointer-events: none;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
         }
 
         .edge.top {
@@ -608,10 +613,10 @@
                 <div class="slot bl" data-slot="bl"></div>
                 <div class="slot br" data-slot="br"></div>
 
-                <div class="clue-box top"><input id="clue-top" placeholder="Top Clue" type="text"></div>
-                <div class="clue-box right"><input id="clue-right" placeholder="Right Clue" type="text"></div>
-                <div class="clue-box bottom"><input id="clue-bottom" placeholder="Bottom Clue" type="text"></div>
-                <div class="clue-box left"><input id="clue-left" placeholder="Left Clue" type="text"></div>
+                <div class="clue-box top"><input id="clue-top" placeholder="Top Clue" type="text" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+                <div class="clue-box right"><input id="clue-right" placeholder="Right Clue" type="text" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+                <div class="clue-box bottom"><input id="clue-bottom" placeholder="Bottom Clue" type="text" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+                <div class="clue-box left"><input id="clue-left" placeholder="Left Clue" type="text" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
             </div>
         </div>
 
@@ -1098,6 +1103,20 @@
         });
     }
 
+    // Prevent spaces in clue inputs
+    function preventSpaces(e) {
+        if (e.key === ' ' || e.key === 'Spacebar') {
+            e.preventDefault();
+            return false;
+        }
+    }
+
+    // Add space prevention to all clue inputs
+    ['clue-top', 'clue-right', 'clue-bottom', 'clue-left'].forEach(id => {
+        const input = document.getElementById(id);
+        input.addEventListener('keydown', preventSpaces);
+    });
+
     function checkPrepReady() {
         const t = document.getElementById('clue-top').value.trim();
         const r = document.getElementById('clue-right').value.trim();
@@ -1454,6 +1473,7 @@
             els.waitingScreen.style.display = 'grid';
             els.waitTitle.textContent = "Game Over!";
             els.waitMsg.textContent = `Total Team Score: ${data.score}`;
+            els.scoreResult.style.display = 'block';
             els.scoreResult.textContent = data.result || '';
             els.actionBtn.style.display = 'none';
             els.nextBoardBtn.style.display = 'none';
@@ -1512,7 +1532,7 @@
                 els.nextBoardBtn.style.display = 'block';
             } else if (!isLocalMode) {
                 // Show waiting message for non-host players
-                els.instruction.textContent = "Waiting for host to continue...";
+                els.instruction.textContent = "Perfect! +6 Points!\nWaiting for host to continue...";
                 els.instruction.style.color = 'var(--muted)';
             }
         }
@@ -1585,7 +1605,7 @@
                 els.nextBoardBtn.style.display = 'block';
             } else {
                 // Show waiting message for non-host players
-                els.instruction.textContent = "Waiting for host to start next board...";
+                els.instruction.textContent = `Round Done! +${data.score} Points.\nWaiting for host to start next board...`;
                 els.instruction.style.color = 'var(--muted)';
             }
         }

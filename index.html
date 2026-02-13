@@ -638,56 +638,7 @@
     /**
      * WORD BANK
      */
-    const WORDS = [
-        "mountain", "valley", "canyon", "plateau", "desert", "dune", "oasis", "forest", "jungle", "meadow", "prairie", "savanna", "tundra", "glacier", "volcano", "island", "archipelago", "peninsula", "coastline", "shore", "beach", "cliff", "cave", "cavern", "waterfall", "river", "stream", "creek", "brook", "lake", "lagoon", "bay", "fjord", "reef", "marsh", "swamp", "bog", "delta", "estuary", "hillside", "summit",
-
-        "dog", "cat", "horse", "cow", "pig", "goat", "sheep", "llama", "alpaca", "deer", "moose", "bison", "camel", "donkey", "zebra", "elephant", "rhino", "hippo", "lion", "tiger", "cheetah", "leopard", "panther", "wolf", "fox", "bear", "koala", "kangaroo", "otter", "beaver", "raccoon", "skunk", "hedgehog", "rabbit", "mouse", "rat", "squirrel", "chipmunk", "bat", "monkey",
-
-        "oak", "maple", "pine", "birch", "cedar", "spruce", "willow", "aspen", "poplar", "sycamore", "palm", "bamboo", "cactus", "aloe", "fern", "moss", "lichen", "ivy", "vine", "tulip", "rose", "daisy", "lily", "orchid", "sunflower", "violet", "peony", "magnolia", "camellia", "lavender", "mint", "basil", "thyme", "rosemary", "sage", "oregano", "nettle", "clover", "acorn", "seed",
-
-        "bread", "butter", "cheese", "milk", "yogurt", "cream", "egg", "bacon", "sausage", "ham", "salad", "soup", "stew", "sandwich", "pizza", "pasta", "noodle", "rice", "curry", "taco", "burrito", "sushi", "dumpling", "pancake", "waffle", "cereal", "granola", "apple", "banana", "orange", "grape", "peach", "pear", "cherry", "lemon", "lime", "blueberry", "strawberry", "chocolate", "cookie",
-
-        "plate", "bowl", "cup", "mug", "glass", "fork", "spoon", "knife", "spatula", "whisk", "ladle", "tongs", "pan", "pot", "kettle", "oven", "stove", "toaster", "blender", "microwave", "fridge", "freezer", "counter", "sink", "faucet", "sponge", "towel", "napkin", "chair", "table", "sofa", "cushion", "pillow", "blanket", "lamp", "candle", "shelf", "drawer", "broom", "bucket",
-
-        "shirt", "t-shirt", "blouse", "sweater", "jacket", "coat", "hoodie", "vest", "dress", "skirt", "pants", "jeans", "shorts", "belt", "scarf", "tie", "bowtie", "hat", "cap", "beanie", "gloves", "mitten", "sock", "shoe", "boot", "sandal", "sneaker", "heel", "laces", "zipper", "button", "collar", "pocket", "sleeve", "fabric", "cotton", "linen", "silk", "denim", "wool",
-
-        "hammer", "nail", "screw", "bolt", "nut", "wrench", "pliers", "drill", "saw", "chisel", "level", "tape", "measure", "sandpaper", "file", "clamp", "vise", "ladder", "toolbox", "glue", "epoxy", "paint", "brush", "roller", "shovel", "rake", "hoe", "axe", "pickaxe", "wheelbarrow", "pipe", "valve", "gasket", "hinge", "socket", "outlet", "wire", "cable", "fuse", "battery",
-
-        "soccer", "football", "basketball", "baseball", "hockey", "tennis", "golf", "volleyball", "rugby", "cricket", "bocce", "badminton", "lacrosse", "fencing", "boxing", "wrestling", "skating", "skiing", "snowboarding", "surfing", "cycling", "running", "jogging", "marathon", "sprint", "relay", "chess", "checkers", "dominoes", "cards", "dice", "puzzle", "riddle", "trivia", "bingo", "karaoke", "foosball", "pinball", "joystick",
-
-        "music", "melody", "rhythm", "harmony", "chord", "scale", "note", "pitch", "tempo", "beat", "song", "lyric", "chorus", "verse", "concert", "recital", "orchestra", "symphony", "band", "choir", "guitar", "piano", "violin", "cello", "trumpet", "trombone", "flute", "clarinet", "saxophone", "drum", "cymbal", "microphone", "speaker", "canvas", "paint", "easel", "palette", "sketch", "sculpture",
-
-        "computer", "laptop", "tablet", "smartphone", "camera", "webcam", "keyboard", "mouse", "monitor", "printer", "router", "modem", "server", "database", "firewall", "cable", "charger", "adapter", "port", "socket", "sensor", "antenna", "satellite", "drone", "console", "gamepad", "controller", "smartwatch", "earbuds", "stylus", "touchscreen", "browser", "website", "app", "file", "folder", "cache", "pixel", "shader", "cursor",
-
-        "car", "truck", "bus", "van", "taxi", "train", "subway", "tram", "trolley", "bicycle", "scooter", "motorcycle", "moped", "skateboard", "rollerblade", "ferry", "boat", "ship", "yacht", "canoe", "kayak", "raft", "sailboat", "barge", "airplane", "jet", "glider", "helicopter", "rocket", "spaceship", "shuttle", "carriage", "wagon", "sled", "sleigh", "snowmobile", "cablecar", "gondola", "elevator",
-
-        "house", "cottage", "cabin", "apartment", "condo", "mansion", "castle", "fortress", "palace", "temple", "museum", "library", "school", "classroom", "office", "studio", "workshop", "garage", "attic", "basement", "hallway", "foyer", "lobby", "kitchen", "pantry", "dining", "living", "bedroom", "bathroom", "closet", "balcony", "terrace", "porch", "patio", "garden", "courtyard", "barn", "shed", "stable", "theater",
-
-        "baker", "chef", "farmer", "gardener", "teacher", "student", "professor", "librarian", "writer", "poet", "artist", "painter", "sculptor", "musician", "singer", "actor", "director", "engineer", "mechanic", "carpenter", "electrician", "plumber", "mason", "tailor", "designer", "doctor", "nurse", "surgeon", "dentist", "therapist", "pilot", "driver", "sailor", "soldier", "guard", "ranger", "cashier", "barista", "waiter",
-
-        "run", "walk", "jump", "hop", "skip", "crawl", "climb", "swim", "dive", "fly", "drive", "ride", "throw", "catch", "kick", "hit", "push", "pull", "lift", "drop", "turn", "spin", "slide", "roll", "hide", "seek", "search", "find", "build", "break", "cut", "paste", "open", "close", "lock", "unlock", "draw", "write", "read", "speak",
-
-        "bright", "dark", "light", "heavy", "soft", "hard", "rough", "smooth", "warm", "cool", "hot", "cold", "fast", "slow", "quick", "quiet", "loud", "clean", "dirty", "fresh", "stale", "salty", "sweet", "bitter", "sour", "spicy", "bland", "sharp", "dull", "small", "big", "tiny", "huge", "narrow", "wide", "short", "tall", "early", "late",
-
-        "idea", "dream", "thought", "memory", "plan", "goal", "hope", "fear", "love", "hate", "joy", "sorrow", "humor", "pride", "guilt", "luck", "fate", "chance", "risk", "rule", "law", "myth", "story", "rumor", "truth", "lie", "secret", "clue", "hint", "sign", "symbol", "pattern", "order", "chaos", "balance", "harmony", "conflict", "peace", "justice",
-
-        "sun", "sunlight", "sunshine", "moon", "star", "sky", "cloud", "fog", "mist", "haze", "rain", "drizzle", "downpour", "storm", "thunder", "lightning", "rainbow", "wind", "breeze", "gust", "gale", "hurricane", "tornado", "blizzard", "snow", "sleet", "hail", "frost", "dew", "icicle", "eclipse", "dusk", "dawn", "sunrise", "sunset", "twilight", "forecast", "climate",
-
-        "ocean", "sea", "wave", "surf", "tide", "current", "ripple", "whirlpool", "foam", "spray", "splash", "bubble", "droplet", "puddle", "pond", "pool", "aquarium", "coral", "kelp", "seaweed", "shoal", "shore", "harbor", "port", "dock", "pier", "anchor", "buoy", "mast", "sail", "hull", "keel", "rudder", "compass", "map", "lantern", "lighthouse", "lifeboat",
-
-        "dragon", "unicorn", "phoenix", "griffin", "mermaid", "centaur", "minotaur", "sphinx", "gargoyle", "troll", "goblin", "elf", "dwarf", "giant", "ogre", "fairy", "sprite", "wizard", "witch", "warlock", "mage", "knight", "paladin", "bard", "druid", "alchemist", "sorcerer", "spell", "potion", "charm", "rune", "relic", "artifact", "crystal", "portal", "quest", "legend", "myth", "prophecy", "citadel",
-
-        "space", "galaxy", "nebula", "star", "planet", "moon", "comet", "asteroid", "meteor", "satellite", "orbit", "apogee", "rocket", "shuttle", "spaceship", "telescope", "observatory", "astronaut", "cosmonaut", "gravity", "magnetism", "energy", "atom", "molecule", "proton", "neutron", "electron", "nucleus", "cell", "tissue", "organ", "DNA", "gene", "enzyme", "quartz", "laboratory", "experiment", "theory", "formula", "spectrum",
-
-        "red", "orange", "yellow", "green", "blue", "indigo", "violet", "pink", "magenta", "cyan", "teal", "turquoise", "maroon", "crimson", "scarlet", "amber", "gold", "silver", "bronze", "black", "white", "gray", "brown", "beige", "circle", "square", "triangle", "rectangle", "rhombus", "diamond", "oval", "ellipse", "star", "heart", "pentagon", "hexagon", "octagon", "cube", "sphere", "pyramid",
-
-        "second", "minute", "hour", "day", "week", "month", "year", "decade", "century", "millennium", "morning", "noon", "afternoon", "evening", "night", "weekend", "weekday", "holiday", "calendar", "schedule", "alarm", "clock", "timer", "stopwatch", "deadline", "birthday", "anniversary", "season", "spring", "summer", "autumn", "winter", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December",
-
-        "eagle", "hawk", "falcon", "owl", "parrot", "canary", "sparrow", "robin", "bluebird", "crow", "raven", "pigeon", "dove", "peacock", "swan", "goose", "duck", "turkey", "flamingo", "heron", "stork", "pelican", "hummingbird", "woodpecker", "butterfly", "moth", "bee", "wasp", "hornet", "ant", "termite", "beetle", "ladybug", "dragonfly", "damselfly", "grasshopper", "cricket", "firefly", "caterpillar", "spider",
-
-        "malarkey", "nincompoop", "gizmo", "widget", "hootenanny", "zigzag", "tomfoolery", "wibble", "bananaphone", "snickerdoodle",
-
-        "key", "lock", "door", "window", "wall", "floor", "ceiling", "roof", "brick", "stone", "tile", "paint", "picture", "photo", "frame", "mirror", "clock", "watch", "calendar", "book", "notebook", "paper", "pencil", "pen", "marker", "crayon", "ruler", "glue", "tape", "key", "lock", "door", "window", "wall", "floor", "ceiling", "roof", "brick", "stone", "tile", "paint", "picture", "photo", "frame", "mirror", "clock", "watch", "calendar", "book", "notebook", "paper", "pencil", "pen", "marker", "crayon", "ruler", "glue", "tape", "backpack", "bag", "wallet", "purse", "coin", "cash", "ticket", "receipt", "card", "stamp", "sticker"];
+    const WORDS = ["mountain","valley","canyon","plateau","desert","dune","oasis","forest","jungle","meadow","prairie","savanna","tundra","glacier","volcano","island","archipelago","peninsula","coastline","shore","beach","cliff","cave","cavern","waterfall","river","stream","creek","brook","lake","lagoon","bay","fjord","reef","marsh","swamp","bog","delta","estuary","hillside","summit","dog","cat","horse","cow","pig","goat","sheep","llama","alpaca","deer","moose","bison","camel","donkey","zebra","elephant","rhino","hippo","lion","tiger","cheetah","leopard","panther","wolf","fox","bear","koala","kangaroo","otter","beaver","raccoon","skunk","hedgehog","rabbit","mouse","rat","squirrel","chipmunk","bat","monkey","oak","maple","pine","birch","cedar","spruce","willow","aspen","poplar","sycamore","palm","bamboo","cactus","aloe","fern","moss","lichen","ivy","vine","tulip","rose","daisy","lily","orchid","sunflower","violet","peony","magnolia","camellia","lavender","mint","basil","thyme","rosemary","sage","oregano","nettle","clover","acorn","seed","bread","butter","cheese","milk","yogurt","cream","egg","bacon","sausage","ham","salad","soup","stew","sandwich","pizza","pasta","noodle","rice","curry","taco","burrito","sushi","dumpling","pancake","waffle","cereal","granola","apple","banana","orange","grape","peach","pear","cherry","lemon","lime","blueberry","strawberry","chocolate","cookie","plate","bowl","cup","mug","glass","fork","spoon","knife","spatula","whisk","ladle","tongs","pan","pot","kettle","oven","stove","toaster","blender","microwave","fridge","freezer","counter","sink","faucet","sponge","towel","napkin","chair","table","sofa","cushion","pillow","blanket","lamp","candle","shelf","drawer","broom","bucket","shirt","blouse","sweater","jacket","coat","hoodie","vest","dress","skirt","pants","jeans","shorts","belt","scarf","tie","bowtie","hat","cap","beanie","gloves","mitten","sock","shoe","boot","sandal","sneaker","heel","laces","zipper","button","collar","pocket","sleeve","fabric","cotton","linen","silk","denim","wool","hammer","nail","screw","bolt","nut","wrench","pliers","drill","saw","chisel","level","tape","measure","sandpaper","file","clamp","vise","ladder","toolbox","glue","epoxy","paint","brush","roller","shovel","rake","hoe","axe","pickaxe","wheelbarrow","pipe","valve","gasket","hinge","socket","outlet","wire","cable","fuse","battery","soccer","football","basketball","baseball","hockey","tennis","golf","volleyball","rugby","cricket","bocce","badminton","lacrosse","fencing","boxing","wrestling","skating","skiing","snowboarding","surfing","cycling","running","jogging","marathon","sprint","relay","chess","checkers","dominoes","cards","dice","puzzle","riddle","trivia","bingo","karaoke","foosball","pinball","joystick","music","melody","rhythm","harmony","chord","scale","note","pitch","tempo","beat","song","lyric","chorus","verse","concert","recital","orchestra","symphony","band","choir","guitar","piano","violin","cello","trumpet","trombone","flute","clarinet","saxophone","drum","cymbal","microphone","speaker","canvas","easel","palette","sketch","sculpture","computer","laptop","tablet","smartphone","camera","webcam","keyboard","monitor","printer","router","modem","server","database","firewall","charger","adapter","port","sensor","antenna","satellite","drone","console","gamepad","controller","smartwatch","earbuds","stylus","touchscreen","browser","website","app","folder","cache","pixel","shader","cursor","car","truck","bus","van","taxi","train","subway","tram","trolley","bicycle","scooter","motorcycle","moped","skateboard","rollerblade","ferry","boat","ship","yacht","canoe","kayak","raft","sailboat","barge","airplane","jet","glider","helicopter","rocket","spaceship","shuttle","carriage","wagon","sled","sleigh","snowmobile","cablecar","gondola","elevator","house","cottage","cabin","apartment","condo","mansion","castle","fortress","palace","temple","museum","library","school","classroom","office","studio","workshop","garage","attic","basement","hallway","foyer","lobby","kitchen","pantry","dining","living","bedroom","bathroom","closet","balcony","terrace","porch","patio","garden","courtyard","barn","shed","stable","theater","baker","chef","farmer","gardener","teacher","student","professor","librarian","writer","poet","artist","painter","sculptor","musician","singer","actor","director","engineer","mechanic","carpenter","electrician","plumber","mason","tailor","designer","doctor","nurse","surgeon","dentist","therapist","pilot","driver","sailor","soldier","guard","ranger","cashier","barista","waiter","run","walk","jump","hop","skip","crawl","climb","swim","dive","fly","drive","ride","throw","catch","kick","hit","push","pull","lift","drop","turn","spin","slide","roll","hide","seek","search","find","build","break","cut","paste","open","close","lock","unlock","draw","write","read","speak","bright","dark","light","heavy","soft","hard","rough","smooth","warm","cool","hot","cold","fast","slow","quick","quiet","loud","clean","dirty","fresh","stale","salty","sweet","bitter","sour","spicy","bland","sharp","dull","small","big","tiny","huge","narrow","wide","short","tall","early","late","idea","dream","thought","memory","plan","goal","hope","fear","love","hate","joy","sorrow","humor","pride","guilt","luck","fate","chance","risk","rule","law","myth","story","rumor","truth","lie","secret","clue","hint","sign","symbol","pattern","order","chaos","balance","conflict","peace","justice","sun","sunlight","sunshine","moon","star","sky","cloud","fog","mist","haze","rain","drizzle","downpour","storm","thunder","lightning","rainbow","wind","breeze","gust","gale","hurricane","tornado","blizzard","snow","sleet","hail","frost","dew","icicle","eclipse","dusk","dawn","sunrise","sunset","twilight","forecast","climate","ocean","sea","wave","surf","tide","current","ripple","whirlpool","foam","spray","splash","bubble","droplet","puddle","pond","pool","aquarium","coral","kelp","seaweed","shoal","harbor","dock","pier","anchor","buoy","mast","sail","hull","keel","rudder","compass","map","lantern","lighthouse","lifeboat","dragon","unicorn","phoenix","griffin","mermaid","centaur","minotaur","sphinx","gargoyle","troll","goblin","elf","dwarf","giant","ogre","fairy","sprite","wizard","witch","warlock","mage","knight","paladin","bard","druid","alchemist","sorcerer","spell","potion","charm","rune","relic","artifact","crystal","portal","quest","legend","prophecy","citadel","space","galaxy","nebula","planet","comet","asteroid","meteor","orbit","apogee","telescope","observatory","astronaut","cosmonaut","gravity","magnetism","energy","atom","molecule","proton","neutron","electron","nucleus","cell","tissue","organ","DNA","gene","enzyme","quartz","laboratory","experiment","theory","formula","spectrum","red","yellow","green","blue","indigo","pink","magenta","cyan","teal","turquoise","maroon","crimson","scarlet","amber","gold","silver","bronze","black","white","gray","brown","beige","circle","square","triangle","rectangle","rhombus","diamond","oval","ellipse","heart","pentagon","hexagon","octagon","cube","sphere","pyramid","second","minute","hour","day","week","month","year","decade","century","millennium","morning","noon","afternoon","evening","night","weekend","weekday","holiday","calendar","schedule","alarm","clock","timer","stopwatch","deadline","birthday","anniversary","season","spring","summer","autumn","winter","January","February","March","April","May","June","July","August","September","October","November","December","eagle","hawk","falcon","owl","parrot","canary","sparrow","robin","bluebird","crow","raven","pigeon","dove","peacock","swan","goose","duck","turkey","flamingo","heron","stork","pelican","hummingbird","woodpecker","butterfly","moth","bee","wasp","hornet","ant","termite","beetle","ladybug","dragonfly","damselfly","grasshopper","firefly","caterpillar","spider","malarkey","nincompoop","gizmo","widget","hootenanny","zigzag","tomfoolery","wibble","bananaphone","snickerdoodle","key","door","window","wall","floor","ceiling","roof","brick","stone","tile","picture","photo","frame","mirror","watch","book","notebook","paper","pencil","pen","marker","crayon","ruler","backpack","bag","wallet","purse","coin","cash","ticket","receipt","card","stamp","sticker"]
 
     /**
      * GAME STATE
@@ -716,6 +667,11 @@
     let reconnectAttempts = 0;
     let maxReconnectAttempts = 5;
     let isReconnecting = false;
+    let heartbeatInterval = null;
+    let pendingPong = false;
+    let pongTimeout = null;
+    let missedPongs = 0;
+    let maxMissedPongs = 2;
 
     // Game Data
     let currentPhase = STATE.LOBBY;
@@ -807,6 +763,7 @@
             setConnectionStatus(true);
 
             conn.send({ type: 'REJOIN', name: myName });
+            startHeartbeat();
         });
 
         conn.on('close', () => {
@@ -992,10 +949,15 @@
     document.addEventListener('visibilitychange', () => {
         if (document.hidden) {
             console.log('📵 Page hidden');
+            stopHeartbeat(); // Stop heartbeat when hidden
         } else {
             console.log('📱 Page visible');
 
             if (!isLocalMode) {
+                // Start heartbeat
+                startHeartbeat();
+
+                // Immediately test connection
                 setTimeout(() => {
                     if (isHost) {
                         testHostConnection();
@@ -1050,12 +1012,36 @@
             return;
         }
 
-        // Try to ping
+        // Don't send another ping if we're still waiting for a pong
+        if (pendingPong) {
+            console.log('⏳ Still waiting for previous PONG...');
+            return;
+        }
+
+        // Send PING and wait for PONG
         try {
-            conn.send({ type: 'PING' });
-            console.log('✅ Client OK (ping sent)');
+            pendingPong = true;
+            conn.send({ type: 'PING', timestamp: Date.now() });
+            console.log('📤 PING sent');
+
+            // Set timeout for PONG response
+            pongTimeout = setTimeout(() => {
+                console.log('⏱️ PONG timeout!');
+                pendingPong = false;
+                missedPongs++;
+
+                if (missedPongs >= maxMissedPongs) {
+                    console.log(`❌ Missed ${missedPongs} PONGs, reconnecting...`);
+                    missedPongs = 0;
+                    reconnectToHost();
+                } else {
+                    console.log(`⚠️ Missed PONG ${missedPongs}/${maxMissedPongs}`);
+                }
+            }, 3000); // Wait 3 seconds for PONG
+
         } catch (e) {
             console.error('❌ Ping failed:', e);
+            pendingPong = false;
             reconnectToHost();
         }
     }
@@ -1579,6 +1565,42 @@
     /**
      * NETWORK HANDLERS
      */
+    function startHeartbeat() {
+        // Clear any existing heartbeat
+        if (heartbeatInterval) {
+            clearInterval(heartbeatInterval);
+        }
+
+        if (isLocalMode) return;
+
+        // Run heartbeat every 10 seconds
+        heartbeatInterval = setInterval(() => {
+            if (document.hidden) return; // Don't heartbeat when page is hidden
+
+            if (isHost) {
+                testHostConnection();
+            } else {
+                testClientConnection();
+            }
+        }, 6000); // Every 6 seconds
+
+        console.log('💓 Heartbeat started');
+    }
+
+    function stopHeartbeat() {
+        if (heartbeatInterval) {
+            clearInterval(heartbeatInterval);
+            heartbeatInterval = null;
+        }
+        if (pongTimeout) {
+            clearTimeout(pongTimeout);
+            pongTimeout = null;
+        }
+        pendingPong = false;
+        missedPongs = 0;
+        console.log('💔 Heartbeat stopped');
+    }
+
     function setupHost() {
         els.startView.style.display = 'none';
         els.createHostView.style.display = 'block';
@@ -1771,6 +1793,7 @@
 
                 els.lobbyModal.style.display = 'none';
                 els.phaseDisplay.textContent = "Waiting for host to start...";
+                startHeartbeat();
             });
 
             conn.on('close', () => {
@@ -1820,20 +1843,27 @@
     }
 
     function handleData(data) {
-        // Handle PING/PONG
+        // Handle PONG - ADD THIS AT THE TOP OF handleData()
+        if (data.type === 'PONG') {
+            console.log('📥 PONG received');
+            if (pongTimeout) {
+                clearTimeout(pongTimeout);
+                pongTimeout = null;
+            }
+            pendingPong = false;
+            missedPongs = 0; // Reset counter on successful PONG
+            return;
+        }
+
+        // Handle PING (clients should respond to host PINGs too)
         if (data.type === 'PING') {
             if (conn && conn.open) {
                 try {
-                    conn.send({ type: 'PONG' });
+                    conn.send({ type: 'PONG', timestamp: Date.now() });
                 } catch (e) {
                     console.error('Failed to send PONG:', e);
                 }
             }
-            return;
-        }
-
-        if (data.type === 'PONG') {
-            // Connection is alive
             return;
         }
 
@@ -1890,6 +1920,7 @@
         }
         const originalWords = JSON.parse(tileEl.dataset.originalWords || "[]");
         updateTileVisuals(tileEl, data.rotation, originalWords);
+        checkAllSlotsFilled();
     }
 
     function handleRoundResult(data) {

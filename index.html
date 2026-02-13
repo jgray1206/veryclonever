@@ -907,7 +907,13 @@
                             delete connections[oldId];
                         }
 
-                        console.log(`${data.name} reconnected`);
+                        // 🔥 CRITICAL: Clean up old game state with old peer ID
+                        if (hostLobbyState[oldId]) {
+                            console.log(`Removing old lobby state for ${oldId}`);
+                            delete hostLobbyState[oldId];
+                        }
+
+                        console.log(`${data.name} reconnected (${oldId} → ${c.peer})`);
                         broadcast({type: 'PLAYER_UPDATE', players});
 
                         if (currentPhase === STATE.SOLVING && activeSolution) {

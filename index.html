@@ -717,12 +717,6 @@
     let maxReconnectAttempts = 5;
     let isReconnecting = false;
 
-    // Heartbeat
-    let heartbeatTimer = null;
-    let lastPongAt = 0;
-    const HEARTBEAT_INTERVAL = 3000;   // send ping every 3s
-    const HEARTBEAT_TIMEOUT  = 8000;   // if no pong in 8s → reconnect
-
     // Game Data
     let currentPhase = STATE.LOBBY;
     let myBoard = null;
@@ -811,13 +805,12 @@
             reconnectAttempts = 0;
             isReconnecting = false;
             setConnectionStatus(true);
-            startClientHeartbeat();
+
             conn.send({ type: 'REJOIN', name: myName });
         });
 
         conn.on('close', () => {
             if (!isReconnecting && currentPhase !== STATE.LOBBY) {
-                stopClientHeartbeat();
                 setTimeout(reconnectToHost, 2000);
             }
         });
@@ -1775,7 +1768,6 @@
                 setConnectionStatus(true);
 
                 conn.send({ type: 'JOIN', name: myName });
-                startClientHeartbeat();
 
                 els.lobbyModal.style.display = 'none';
                 els.phaseDisplay.textContent = "Waiting for host to start...";
@@ -1827,41 +1819,6 @@
         if (isHost) handleData(msg);
     }
 
-    function startClientHeartbeat() {
-        stopClientHeartbeat();
-        lastPongAt = Date.now();
-
-        heartbeatTimer = setInterval(() => {
-            if (isLocalMode || isHost) return;
-
-            if (!conn || !conn.open) {
-                console.warn("💔 Heartbeat: no connection, reconnecting...");
-                reconnectToHost();
-                return;
-            }
-
-            try {
-                conn.send({ type: 'PING', t: Date.now() });
-            } catch (e) {
-                console.warn("💥 Heartbeat send failed:", e);
-                reconnectToHost();
-                return;
-            }
-
-            if (Date.now() - lastPongAt > HEARTBEAT_TIMEOUT) {
-                console.warn("💀 Heartbeat timeout, reconnecting...");
-                reconnectToHost();
-            }
-        }, HEARTBEAT_INTERVAL);
-    }
-
-    function stopClientHeartbeat() {
-        if (heartbeatTimer) {
-            clearInterval(heartbeatTimer);
-            heartbeatTimer = null;
-        }
-    }
-
     function handleData(data) {
         // Handle PING/PONG
         if (data.type === 'PING') {
@@ -1876,8 +1833,7 @@
         }
 
         if (data.type === 'PONG') {
-            lastPongAt = Date.now();
-            setConnectionStatus(true);
+            // Connection is alive
             return;
         }
 

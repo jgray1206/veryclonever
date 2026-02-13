@@ -1825,7 +1825,7 @@
         });
 
         peer.on('error', (err) => {
-            console.error('Host peer error:', err);
+            alert('Host peer error:' + String(err));
             if (err.type === 'disconnected' || err.type === 'network') {
                 if (!isReconnecting) {
                     attemptHostReconnect();

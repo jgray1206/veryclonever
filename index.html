@@ -1068,10 +1068,10 @@
             // Check if reconnect worked after 2 seconds
             setTimeout(() => {
                 if (peer.disconnected) {
-                    console.log('peer.reconnect() failed, recreating peer...');
+                    alert('peer.reconnect() failed, recreating peer...');
                     recreateHostPeer();
                 } else {
-                    console.log('peer.reconnect() succeeded!');
+                    alert('peer.reconnect() succeeded!');
                     reconnectAttempts = 0;
                     isReconnecting = false;
                     resetPhaseDisplay();
@@ -1094,7 +1094,7 @@
         });
 
         peer.on('open', (id) => {
-            console.log('Host peer recreated with ID:', id);
+            alert('Host peer recreated with ID:' + id);
 
             if (id !== hostPeerId) {
                 // This is bad - we got a different ID, clients can't reconnect
@@ -1106,7 +1106,7 @@
                 const shareURL = `${window.location.origin}${window.location.pathname}?room=${id}`;
                 document.getElementById('shareLink').value = shareURL;
             } else {
-                console.log('Successfully reclaimed same host ID!');
+                alert('Successfully reclaimed same host ID!');
             }
 
             reconnectAttempts = 0;
@@ -1160,7 +1160,7 @@
         });
 
         peer.on('error', (err) => {
-            console.error('Host peer recreation error:', err);
+            alert('Host peer recreation error:' + String(err));
             if (err.type === 'unavailable-id') {
                 console.log('Peer ID unavailable, waiting before retry...');
             }

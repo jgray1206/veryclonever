@@ -840,6 +840,7 @@
 
                 if (id === originalHostPeerId) {
                     console.log('✅ SUCCESS! Reclaimed peer ID:', id);
+                    myPeerId = id; // 🔥 UPDATE myPeerId!
                     reconnectAttempts = 0;
                     isReconnecting = false;
 
@@ -875,6 +876,9 @@
 
     // Setup host connection handler (extracted to function for reconnect)
     function setupHostConnectionHandler() {
+        // Remove all existing 'connection' listeners to prevent duplicates
+        peer.removeAllListeners('connection');
+
         peer.on('connection', (c) => {
             console.log('New connection:', c.peer);
             connections[c.peer] = c;
@@ -899,7 +903,8 @@
                 }
                 else if (data.type === 'REJOIN') {
                     console.log('🔄 REJOIN received:', data.name);
-                    const player = players.find(p => p.name === data.name);
+                    let player = players.find(p => p.name === data.name);
+
                     if (player) {
                         const oldId = player.id;
                         player.id = c.peer;
@@ -922,36 +927,39 @@
                             console.log(`👁️ Updating activeSpectatorId: ${oldId} → ${c.peer}`);
                             activeSpectatorId = c.peer;
                         }
-
-                        console.log(`✅ ${data.name} reconnected successfully`);
-                        console.log('Current state:', {
-                            players: players.map(p => `${p.name}:${p.id}`),
-                            lobbyState: Object.keys(hostLobbyState),
-                            currentPhase: currentPhase
-                        });
-
-                        broadcast({type: 'PLAYER_UPDATE', players});
-
-                        // Check if all boards submitted after migration
-                        if (currentPhase === STATE.PREP && Object.keys(hostLobbyState).length === players.length) {
-                            console.log('🎯 All boards already submitted after REJOIN! Proceeding...');
-                            players = shuffle(players);
-                            setTimeout(() => hostNextRound(0), 1000);
-                        }
-
-                        if (currentPhase === STATE.SOLVING && activeSolution) {
-                            const roundState = {
-                                spectatorId: activeSpectatorId,
-                                attempt: attemptCount,
-                                clues: activeSolution.clues,
-                                dock: getCurrentDockTiles(),
-                                slots: getCurrentSlots(),
-                                playerIndex: players.findIndex(p => p.id === activeSpectatorId)
-                            };
-                            c.send({type: 'START_ROUND', state: roundState});
-                        }
                     } else {
-                        console.error('❌ REJOIN: Player not found:', data.name);
+                        // Player was removed during cleanup - re-add them!
+                        console.log(`➕ Re-adding player ${data.name} who was cleaned up`);
+                        player = { id: c.peer, name: data.name, status: 'waiting' };
+                        players.push(player);
+                    }
+
+                    console.log(`✅ ${data.name} reconnected successfully`);
+                    console.log('Current state:', {
+                        players: players.map(p => `${p.name}:${p.id}`),
+                        lobbyState: Object.keys(hostLobbyState),
+                        currentPhase: currentPhase
+                    });
+
+                    broadcast({type: 'PLAYER_UPDATE', players});
+
+                    // Check if all boards submitted after migration
+                    if (currentPhase === STATE.PREP && Object.keys(hostLobbyState).length === players.length) {
+                        console.log('🎯 All boards already submitted after REJOIN! Proceeding...');
+                        players = shuffle(players);
+                        setTimeout(() => hostNextRound(0), 1000);
+                    }
+
+                    if (currentPhase === STATE.SOLVING && activeSolution) {
+                        const roundState = {
+                            spectatorId: activeSpectatorId,
+                            attempt: attemptCount,
+                            clues: activeSolution.clues,
+                            dock: getCurrentDockTiles(),
+                            slots: getCurrentSlots(),
+                            playerIndex: players.findIndex(p => p.id === activeSpectatorId)
+                        };
+                        c.send({type: 'START_ROUND', state: roundState});
                     }
                 }
                 else if (data.type === 'SUBMIT_BOARD') {
@@ -1014,22 +1022,6 @@
             console.log('⚠️ Peer disconnected');
             reconnectHostPeer();
             return;
-        }
-
-        // Clean up dead client connections
-        let deadCount = 0;
-        Object.entries(connections).forEach(([id, c]) => {
-            if (!c.open) {
-                console.log(`Removing dead connection: ${id}`);
-                delete connections[id];
-                players = players.filter(p => p.id !== id);
-                deadCount++;
-            }
-        });
-
-        if (deadCount > 0) {
-            updateHostList();
-            broadcast({ type: 'PLAYER_UPDATE', players });
         }
 
         console.log('✅ Host OK');
@@ -1839,6 +1831,10 @@
             const oldId = myPeerId;
             myPeerId = id;
             console.log('🆔 Peer open event. myPeerId:', oldId, '→', id);
+
+            if (oldId && oldId !== id) {
+                console.log('⚠️ Client peer ID changed after reconnection!');
+            }
 
             conn = peer.connect(hostPeerId, { reliable: true });
 

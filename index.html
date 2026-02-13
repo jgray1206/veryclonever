@@ -991,9 +991,9 @@
     // Test connections when page becomes visible
     document.addEventListener('visibilitychange', () => {
         if (document.hidden) {
-            alert('📵 Page hidden');
+            console.log('📵 Page hidden');
         } else {
-            alert('📱 Page visible');
+            console.log('📱 Page visible');
 
             if (!isLocalMode) {
                 setTimeout(() => {

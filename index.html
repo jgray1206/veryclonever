@@ -898,10 +898,13 @@
                     els.startBtn.innerText = players.length < 2 ? "Waiting for players..." : "Start Game";
                 }
                 else if (data.type === 'REJOIN') {
+                    console.log('🔄 REJOIN received:', data.name);
                     const player = players.find(p => p.name === data.name);
                     if (player) {
                         const oldId = player.id;
                         player.id = c.peer;
+
+                        console.log(`🔄 Player ID change: ${oldId} → ${c.peer}`);
 
                         if (connections[oldId]) {
                             delete connections[oldId];
@@ -909,22 +912,29 @@
 
                         // 🔥 CRITICAL: Migrate submitted board to new peer ID
                         if (hostLobbyState[oldId]) {
-                            console.log(`Migrating board from ${oldId} to ${c.peer}`);
+                            console.log(`📦 Migrating board from ${oldId} to ${c.peer}`);
                             hostLobbyState[c.peer] = hostLobbyState[oldId];
                             delete hostLobbyState[oldId];
                         }
 
                         // 🔥 Update activeSpectatorId if the spectator reconnects
                         if (activeSpectatorId === oldId) {
-                            console.log(`Updating activeSpectatorId: ${oldId} → ${c.peer}`);
+                            console.log(`👁️ Updating activeSpectatorId: ${oldId} → ${c.peer}`);
                             activeSpectatorId = c.peer;
                         }
 
-                        console.log(`${data.name} reconnected (${oldId} → ${c.peer})`);
+                        console.log(`✅ ${data.name} reconnected successfully`);
+                        console.log('Current state:', {
+                            players: players.map(p => `${p.name}:${p.id}`),
+                            lobbyState: Object.keys(hostLobbyState),
+                            currentPhase: currentPhase
+                        });
+
                         broadcast({type: 'PLAYER_UPDATE', players});
 
                         // Check if all boards submitted after migration
                         if (currentPhase === STATE.PREP && Object.keys(hostLobbyState).length === players.length) {
+                            console.log('🎯 All boards already submitted after REJOIN! Proceeding...');
                             players = shuffle(players);
                             setTimeout(() => hostNextRound(0), 1000);
                         }
@@ -940,9 +950,12 @@
                             };
                             c.send({type: 'START_ROUND', state: roundState});
                         }
+                    } else {
+                        console.error('❌ REJOIN: Player not found:', data.name);
                     }
                 }
                 else if (data.type === 'SUBMIT_BOARD') {
+                    console.log('📥 Received SUBMIT_BOARD from', c.peer);
                     handleBoardSubmission(c.peer, data.board);
                 }
                 else if (data.type === 'TILE_MOVE') {
@@ -1424,8 +1437,24 @@
                     board: myBoard
                 };
 
-                if (isHost) handleBoardSubmission(myPeerId, myBoard);
-                else conn.send(payload);
+                console.log('📤 Submitting board:', {
+                    isHost,
+                    myPeerId,
+                    hasConn: !!conn,
+                    connOpen: conn?.open,
+                    board: myBoard
+                });
+
+                if (isHost) {
+                    handleBoardSubmission(myPeerId, myBoard);
+                } else {
+                    try {
+                        conn.send(payload);
+                        console.log('✅ Board sent to host');
+                    } catch (e) {
+                        console.error('❌ Failed to send board:', e);
+                    }
+                }
             }
         } else if (currentPhase === STATE.SOLVING) {
             sendVerifyRequest();
@@ -1501,13 +1530,29 @@
     }
 
     function handleBoardSubmission(pid, board) {
+        console.log('📝 Board submission:', {
+            pid,
+            currentLobbyState: Object.keys(hostLobbyState),
+            currentPlayers: players.map(p => p.id),
+            lobbyCount: Object.keys(hostLobbyState).length,
+            playerCount: players.length
+        });
+
         hostLobbyState[pid] = board;
 
         const p = players.find(x => x.id === pid);
         if (p) p.status = 'done';
         updateHostList();
 
+        console.log('📝 After submission:', {
+            lobbyState: Object.keys(hostLobbyState),
+            lobbyCount: Object.keys(hostLobbyState).length,
+            playerCount: players.length,
+            willProceed: Object.keys(hostLobbyState).length === players.length
+        });
+
         if (Object.keys(hostLobbyState).length === players.length) {
+            console.log('✅ All boards submitted! Starting rounds...');
             players = shuffle(players);
             setTimeout(() => hostNextRound(0), 1000);
         }
@@ -1791,8 +1836,9 @@
 
         peer = new Peer();
         peer.on('open', (id) => {
+            const oldId = myPeerId;
             myPeerId = id;
-            console.log('Client peer ID:', id);
+            console.log('🆔 Peer open event. myPeerId:', oldId, '→', id);
 
             conn = peer.connect(hostPeerId, { reliable: true });
 
@@ -1836,6 +1882,7 @@
 
         peer.on('disconnected', () => {
             console.log('Client peer disconnected');
+            console.log('Current myPeerId:', myPeerId);
             if (!peer.destroyed && !isReconnecting) {
                 peer.reconnect();
             }

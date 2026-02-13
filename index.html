@@ -703,19 +703,19 @@
 
     let myPeerId = null;
     let peer = null;
-    let conn = null; // Client -> Host
-    let connections = {}; // Host -> Clients
+    let conn = null;
+    let connections = {};
     let isHost = false;
     let isLocalMode = false;
     let myName = "Player";
     let players = [];
 
-    // Simplified reconnection state
+    // Reconnection state
     let hostPeerId = null;
+    let originalHostPeerId = null; // 🔥 Store original for reclaiming
     let reconnectAttempts = 0;
     let maxReconnectAttempts = 5;
     let isReconnecting = false;
-    let connectionCheckInterval = null;
 
     // Game Data
     let currentPhase = STATE.LOBBY;
@@ -753,12 +753,11 @@
     };
 
     /**
-     * SIMPLIFIED CONNECTION MANAGEMENT
+     * CONNECTION MANAGEMENT
      */
 
-    // Show/hide connection status banner
     function setConnectionStatus(isConnected, message = '') {
-        if (isLocalMode) return; // No connection status in local mode
+        if (isLocalMode) return;
 
         if (isConnected) {
             els.connectionBanner.style.display = 'none';
@@ -768,30 +767,6 @@
         }
     }
 
-    // Simple connection health check (runs every 10 seconds when page is visible)
-    function startConnectionCheck() {
-        if (connectionCheckInterval) clearInterval(connectionCheckInterval);
-
-        connectionCheckInterval = setInterval(() => {
-            // Only check when page is visible
-            if (document.hidden || isLocalMode) return;
-
-            if (isHost) {
-                // Host: check if peer is connected
-                if (peer && peer.disconnected && !isReconnecting) {
-                    console.log('Host peer disconnected, reconnecting...');
-                    reconnectHostPeer();
-                }
-            } else if (conn) {
-                // Client: check if connection to host is alive
-                if (!conn.open && !isReconnecting) {
-                    console.log('Connection to host lost, reconnecting...');
-                    reconnectToHost();
-                }
-            }
-        }, 10000); // Check every 10 seconds
-    }
-
     // Client: Reconnect to host
     function reconnectToHost() {
         if (isReconnecting || isLocalMode || !hostPeerId) return;
@@ -799,7 +774,7 @@
         isReconnecting = true;
         reconnectAttempts++;
 
-        console.log(`Reconnect attempt ${reconnectAttempts}/${maxReconnectAttempts}`);
+        console.log(`Client reconnect ${reconnectAttempts}/${maxReconnectAttempts}`);
         setConnectionStatus(false, `Reconnecting... (${reconnectAttempts}/${maxReconnectAttempts})`);
 
         if (reconnectAttempts > maxReconnectAttempts) {
@@ -808,37 +783,33 @@
             return;
         }
 
-        // Close old connection
         if (conn) {
             try {
                 conn.close();
             } catch (e) {
-                console.log('Error closing old connection:', e);
+                console.log('Error closing connection:', e);
             }
         }
 
-        // Create new connection to host
         conn = peer.connect(hostPeerId, { reliable: true });
 
         let timeout = setTimeout(() => {
-            console.log('Connection timeout');
+            console.log('Reconnect timeout');
             isReconnecting = false;
-            setTimeout(reconnectToHost, 2000 * reconnectAttempts); // Exponential backoff
+            setTimeout(reconnectToHost, 2000 * reconnectAttempts);
         }, 5000);
 
         conn.on('open', () => {
             clearTimeout(timeout);
-            console.log('Reconnected to host!');
+            console.log('✅ Reconnected to host!');
             reconnectAttempts = 0;
             isReconnecting = false;
             setConnectionStatus(true);
 
-            // Send rejoin message
             conn.send({ type: 'REJOIN', name: myName });
         });
 
         conn.on('close', () => {
-            console.log('Connection closed');
             if (!isReconnecting && currentPhase !== STATE.LOBBY) {
                 setTimeout(reconnectToHost, 2000);
             }
@@ -846,7 +817,7 @@
 
         conn.on('error', (err) => {
             clearTimeout(timeout);
-            console.error('Connection error:', err);
+            console.error('Reconnect error:', err);
             isReconnecting = false;
             setTimeout(reconnectToHost, 2000 * reconnectAttempts);
         });
@@ -854,76 +825,240 @@
         conn.on('data', handleData);
     }
 
-    // Host: Reconnect peer (simpler approach - just reconnect, don't try to reclaim ID)
+    // Host: Reconnect peer by RECLAIMING SAME ID
     function reconnectHostPeer() {
-        if (isReconnecting) return;
+        if (isReconnecting || !originalHostPeerId) return;
 
         isReconnecting = true;
         reconnectAttempts++;
 
-        console.log(`Host reconnect attempt ${reconnectAttempts}/${maxReconnectAttempts}`);
+        console.log(`Host reconnect ${reconnectAttempts}/${maxReconnectAttempts}`);
         els.phaseDisplay.textContent = `Reconnecting... (${reconnectAttempts}/${maxReconnectAttempts})`;
 
         if (reconnectAttempts > maxReconnectAttempts) {
-            els.phaseDisplay.textContent = 'Connection lost. Restart required.';
+            els.phaseDisplay.textContent = 'Connection lost. Please create new lobby.';
+            els.instruction.textContent = 'Host connection died.\nCreate a new lobby to continue.';
+            els.instruction.style.color = 'var(--danger)';
             isReconnecting = false;
             return;
         }
 
-        // Try simple reconnect first
-        if (peer && !peer.destroyed) {
-            peer.reconnect();
+        // Exponential backoff: 1s, 2s, 4s, 8s, 16s (max 10s)
+        const delay = Math.min(1000 * Math.pow(2, reconnectAttempts - 1), 10000);
 
-            setTimeout(() => {
-                if (peer.disconnected) {
-                    console.log('Simple reconnect failed, will retry...');
-                    isReconnecting = false;
-                    setTimeout(reconnectHostPeer, 2000 * reconnectAttempts);
-                } else {
-                    console.log('Reconnected successfully!');
-                    reconnectAttempts = 0;
-                    isReconnecting = false;
-                    resetPhaseDisplay();
-                }
-            }, 3000);
-        } else {
-            // Peer is destroyed, can't recover - user must restart
-            els.phaseDisplay.textContent = 'Connection lost. Please create a new lobby.';
-            isReconnecting = false;
-        }
+        console.log(`Waiting ${delay}ms before reclaim attempt...`);
+
+        setTimeout(() => {
+            attemptHostReclaim();
+        }, delay);
     }
 
-    // Handle visibility change (critical for mobile Safari)
-    document.addEventListener('visibilitychange', () => {
-        if (document.hidden) {
-            console.log('Page hidden');
-            // Clear interval when hidden
-            if (connectionCheckInterval) {
-                clearInterval(connectionCheckInterval);
-                connectionCheckInterval = null;
+    function attemptHostReclaim() {
+        console.log(`Attempting to reclaim peer ID: ${originalHostPeerId}`);
+
+        // Destroy old peer
+        if (peer && !peer.destroyed) {
+            try {
+                peer.destroy();
+            } catch (e) {
+                console.log('Error destroying peer:', e);
             }
-        } else {
-            console.log('Page visible - checking connections');
+        }
 
-            if (!isLocalMode) {
-                // Restart connection checks
-                startConnectionCheck();
+        // Wait for cleanup
+        setTimeout(() => {
+            // RECLAIM THE SAME ID
+            peer = new Peer(originalHostPeerId, {
+                debug: 1
+            });
 
-                // Immediately check connection status
-                if (isHost) {
-                    if (peer && peer.disconnected && !isReconnecting) {
-                        console.log('Host peer disconnected while backgrounded');
-                        reconnectHostPeer();
+            let reclaimTimeout = setTimeout(() => {
+                console.log('Reclaim timeout');
+                isReconnecting = false;
+                reconnectHostPeer(); // Try again
+            }, 10000);
+
+            peer.on('open', (id) => {
+                clearTimeout(reclaimTimeout);
+
+                if (id === originalHostPeerId) {
+                    console.log('✅ SUCCESS! Reclaimed peer ID:', id);
+                    reconnectAttempts = 0;
+                    isReconnecting = false;
+
+                    els.phaseDisplay.textContent = 'Reconnected!';
+                    setTimeout(resetPhaseDisplay, 2000);
+
+                    // Re-setup connection handler
+                    setupHostConnectionHandler();
+                } else {
+                    console.error('❌ Got different ID:', id);
+                    isReconnecting = false;
+                    reconnectHostPeer();
+                }
+            });
+
+            peer.on('error', (err) => {
+                clearTimeout(reclaimTimeout);
+                console.error('Reclaim error:', err.type, err);
+
+                isReconnecting = false;
+                reconnectHostPeer(); // Retry with backoff
+            });
+
+            peer.on('disconnected', () => {
+                console.log('Peer disconnected again');
+                if (!peer.destroyed && !isReconnecting) {
+                    reconnectHostPeer();
+                }
+            });
+
+        }, 500);
+    }
+
+    // Setup host connection handler (extracted to function for reconnect)
+    function setupHostConnectionHandler() {
+        peer.on('connection', (c) => {
+            console.log('New connection:', c.peer);
+            connections[c.peer] = c;
+
+            c.on('data', (data) => {
+                // Handle PING
+                if (data.type === 'PING') {
+                    try {
+                        c.send({ type: 'PONG' });
+                    } catch (e) {
+                        console.error('Failed to send PONG:', e);
                     }
-                } else if (conn) {
-                    if (!conn.open && !isReconnecting) {
-                        console.log('Connection lost while backgrounded');
-                        reconnectToHost();
+                    return;
+                }
+
+                if (data.type === 'JOIN') {
+                    players.push({ id: c.peer, name: data.name, status: 'waiting' });
+                    updateHostList();
+                    broadcast({ type: 'PLAYER_UPDATE', players });
+                    els.startBtn.disabled = players.length < 2;
+                    els.startBtn.innerText = players.length < 2 ? "Waiting for players..." : "Start Game";
+                }
+                else if (data.type === 'REJOIN') {
+                    const player = players.find(p => p.name === data.name);
+                    if (player) {
+                        const oldId = player.id;
+                        player.id = c.peer;
+
+                        if (connections[oldId]) {
+                            delete connections[oldId];
+                        }
+
+                        console.log(`${data.name} reconnected`);
+                        broadcast({type: 'PLAYER_UPDATE', players});
+
+                        if (currentPhase === STATE.SOLVING && activeSolution) {
+                            const roundState = {
+                                spectatorId: activeSpectatorId,
+                                attempt: attemptCount,
+                                clues: activeSolution.clues,
+                                dock: getCurrentDockTiles(),
+                                slots: getCurrentSlots(),
+                                playerIndex: players.findIndex(p => p.id === activeSpectatorId)
+                            };
+                            c.send({type: 'START_ROUND', state: roundState});
+                        }
                     }
                 }
+                else if (data.type === 'SUBMIT_BOARD') {
+                    handleBoardSubmission(c.peer, data.board);
+                }
+                else if (data.type === 'TILE_MOVE') {
+                    broadcast(data);
+                    handleTileMove(data);
+                }
+                else if (data.type === 'VERIFY') {
+                    verifySolution(data.slots);
+                }
+            });
+
+            c.on('close', () => {
+                console.log(`Client ${c.peer} disconnected`);
+            });
+
+            c.on('error', (err) => {
+                console.error(`Connection error with ${c.peer}:`, err);
+            });
+        });
+    }
+
+    // Test connections when page becomes visible
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            alert('📵 Page hidden');
+        } else {
+            alert('📱 Page visible');
+
+            if (!isLocalMode) {
+                setTimeout(() => {
+                    if (isHost) {
+                        testHostConnection();
+                    } else {
+                        testClientConnection();
+                    }
+                }, 1000); // Give Safari time to wake up
             }
         }
     });
+
+    function testHostConnection() {
+        console.log('🔍 Testing host...');
+
+        if (!peer || peer.destroyed) {
+            console.log('❌ Peer destroyed');
+            reconnectHostPeer();
+            return;
+        }
+
+        if (peer.disconnected) {
+            console.log('⚠️ Peer disconnected');
+            reconnectHostPeer();
+            return;
+        }
+
+        // Clean up dead client connections
+        let deadCount = 0;
+        Object.entries(connections).forEach(([id, c]) => {
+            if (!c.open) {
+                console.log(`Removing dead connection: ${id}`);
+                delete connections[id];
+                players = players.filter(p => p.id !== id);
+                deadCount++;
+            }
+        });
+
+        if (deadCount > 0) {
+            updateHostList();
+            broadcast({ type: 'PLAYER_UPDATE', players });
+        }
+
+        console.log('✅ Host OK');
+    }
+
+    function testClientConnection() {
+        console.log('🔍 Testing client...');
+
+        if (!conn || !conn.open) {
+            console.log('❌ Connection dead');
+            reconnectToHost();
+            return;
+        }
+
+        // Try to ping
+        try {
+            conn.send({ type: 'PING' });
+            console.log('✅ Client OK (ping sent)');
+        } catch (e) {
+            console.error('❌ Ping failed:', e);
+            reconnectToHost();
+        }
+    }
 
     function resetPhaseDisplay() {
         if (currentPhase === STATE.LOBBY) {
@@ -1033,7 +1168,6 @@
         return '🍀 Four-leaf clover';
     }
 
-    // Check for room code in URL
     function checkURLParams() {
         const params = new URLSearchParams(window.location.search);
         const roomCode = params.get('room');
@@ -1469,6 +1603,8 @@
         peer.on('open', (id) => {
             myPeerId = id;
             hostPeerId = id;
+            originalHostPeerId = id; // 🔥 STORE FOR RECLAIMING!
+
             els.roomCode.innerText = id;
 
             const shareURL = `${window.location.origin}${window.location.pathname}?room=${id}`;
@@ -1480,66 +1616,7 @@
             players.push({ id: myPeerId, name: myName, status: 'waiting' });
             updateHostList();
 
-            startConnectionCheck();
-        });
-
-        peer.on('connection', (c) => {
-            connections[c.peer] = c;
-
-            c.on('data', (data) => {
-                if (data.type === 'JOIN') {
-                    players.push({ id: c.peer, name: data.name, status: 'waiting' });
-                    updateHostList();
-                    broadcast({ type: 'PLAYER_UPDATE', players });
-                    els.startBtn.disabled = players.length < 2;
-                    els.startBtn.innerText = players.length < 2 ? "Waiting for players..." : "Start Game";
-                }
-                else if (data.type === 'REJOIN') {
-                    const player = players.find(p => p.name === data.name);
-                    if (player) {
-                        const oldId = player.id;
-                        player.id = c.peer;
-
-                        if (connections[oldId]) {
-                            delete connections[oldId];
-                        }
-
-                        console.log(`${data.name} reconnected`);
-
-                        broadcast({type: 'PLAYER_UPDATE', players});
-
-                        if (currentPhase === STATE.SOLVING && activeSolution) {
-                            const roundState = {
-                                spectatorId: activeSpectatorId,
-                                attempt: attemptCount,
-                                clues: activeSolution.clues,
-                                dock: getCurrentDockTiles(),
-                                slots: getCurrentSlots(),
-                                playerIndex: players.findIndex(p => p.id === activeSpectatorId)
-                            };
-                            c.send({type: 'START_ROUND', state: roundState});
-                        }
-                    }
-                }
-                else if (data.type === 'SUBMIT_BOARD') {
-                    handleBoardSubmission(c.peer, data.board);
-                }
-                else if (data.type === 'TILE_MOVE') {
-                    broadcast(data);
-                    handleTileMove(data);
-                }
-                else if (data.type === 'VERIFY') {
-                    verifySolution(data.slots);
-                }
-            });
-
-            c.on('close', () => {
-                console.log(`Client ${c.peer} disconnected`);
-            });
-
-            c.on('error', (err) => {
-                console.error(`Connection error with ${c.peer}:`, err);
-            });
+            setupHostConnectionHandler();
         });
 
         peer.on('disconnected', () => {
@@ -1694,8 +1771,6 @@
 
                 els.lobbyModal.style.display = 'none';
                 els.phaseDisplay.textContent = "Waiting for host to start...";
-
-                startConnectionCheck();
             });
 
             conn.on('close', () => {
@@ -1745,6 +1820,23 @@
     }
 
     function handleData(data) {
+        // Handle PING/PONG
+        if (data.type === 'PING') {
+            if (conn && conn.open) {
+                try {
+                    conn.send({ type: 'PONG' });
+                } catch (e) {
+                    console.error('Failed to send PONG:', e);
+                }
+            }
+            return;
+        }
+
+        if (data.type === 'PONG') {
+            // Connection is alive
+            return;
+        }
+
         if (data.type === 'PLAYER_UPDATE') {
             players = data.players;
         } else if (data.type === 'START_PREP') {

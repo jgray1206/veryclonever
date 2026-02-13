@@ -907,14 +907,27 @@
                             delete connections[oldId];
                         }
 
-                        // 🔥 CRITICAL: Clean up old game state with old peer ID
+                        // 🔥 CRITICAL: Migrate submitted board to new peer ID
                         if (hostLobbyState[oldId]) {
-                            console.log(`Removing old lobby state for ${oldId}`);
+                            console.log(`Migrating board from ${oldId} to ${c.peer}`);
+                            hostLobbyState[c.peer] = hostLobbyState[oldId];
                             delete hostLobbyState[oldId];
+                        }
+
+                        // 🔥 Update activeSpectatorId if the spectator reconnects
+                        if (activeSpectatorId === oldId) {
+                            console.log(`Updating activeSpectatorId: ${oldId} → ${c.peer}`);
+                            activeSpectatorId = c.peer;
                         }
 
                         console.log(`${data.name} reconnected (${oldId} → ${c.peer})`);
                         broadcast({type: 'PLAYER_UPDATE', players});
+
+                        // Check if all boards submitted after migration
+                        if (currentPhase === STATE.PREP && Object.keys(hostLobbyState).length === players.length) {
+                            players = shuffle(players);
+                            setTimeout(() => hostNextRound(0), 1000);
+                        }
 
                         if (currentPhase === STATE.SOLVING && activeSolution) {
                             const roundState = {

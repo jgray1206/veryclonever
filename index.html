@@ -125,8 +125,8 @@
             white-space: pre-line;
         }
 
-        /* Spectator Warning Banner */
-        .spectator-banner {
+        /* Connection status banner */
+        .connection-banner {
             display: none;
             background: #ff9800;
             color: #000;
@@ -592,6 +592,8 @@
     </div>
 </header>
 
+<div class="connection-banner" id="connectionBanner">Reconnecting...</div>
+
 <main>
     <div class="game-area">
         <div class="status-bar" style="width: 100%; max-width: 600px;">
@@ -704,18 +706,16 @@
     let conn = null; // Client -> Host
     let connections = {}; // Host -> Clients
     let isHost = false;
-    let isLocalMode = false; // NEW: Track local mode
+    let isLocalMode = false;
     let myName = "Player";
     let players = [];
 
-    // Reconnection state
-    let hostPeerId = null; // Store host ID for client reconnection
+    // Simplified reconnection state
+    let hostPeerId = null;
     let reconnectAttempts = 0;
-    let maxReconnectAttempts = 10;
-    let reconnectDelay = 2000; // Start with 2 seconds
+    let maxReconnectAttempts = 5;
     let isReconnecting = false;
-    let heartbeatInterval = null;
-    let lastHeartbeat = {};
+    let connectionCheckInterval = null;
 
     // Game Data
     let currentPhase = STATE.LOBBY;
@@ -748,8 +748,193 @@
         waitMsg: document.getElementById('waitMsg'),
         scoreResult: document.getElementById('scoreResult'),
         phaseDisplay: document.getElementById('phaseDisplay'),
-        scoreDisplay: document.getElementById('scoreDisplay')
+        scoreDisplay: document.getElementById('scoreDisplay'),
+        connectionBanner: document.getElementById('connectionBanner')
     };
+
+    /**
+     * SIMPLIFIED CONNECTION MANAGEMENT
+     */
+
+    // Show/hide connection status banner
+    function setConnectionStatus(isConnected, message = '') {
+        if (isLocalMode) return; // No connection status in local mode
+
+        if (isConnected) {
+            els.connectionBanner.style.display = 'none';
+        } else {
+            els.connectionBanner.textContent = message || 'Reconnecting...';
+            els.connectionBanner.style.display = 'block';
+        }
+    }
+
+    // Simple connection health check (runs every 10 seconds when page is visible)
+    function startConnectionCheck() {
+        if (connectionCheckInterval) clearInterval(connectionCheckInterval);
+
+        connectionCheckInterval = setInterval(() => {
+            // Only check when page is visible
+            if (document.hidden || isLocalMode) return;
+
+            if (isHost) {
+                // Host: check if peer is connected
+                if (peer && peer.disconnected && !isReconnecting) {
+                    console.log('Host peer disconnected, reconnecting...');
+                    reconnectHostPeer();
+                }
+            } else if (conn) {
+                // Client: check if connection to host is alive
+                if (!conn.open && !isReconnecting) {
+                    console.log('Connection to host lost, reconnecting...');
+                    reconnectToHost();
+                }
+            }
+        }, 10000); // Check every 10 seconds
+    }
+
+    // Client: Reconnect to host
+    function reconnectToHost() {
+        if (isReconnecting || isLocalMode || !hostPeerId) return;
+
+        isReconnecting = true;
+        reconnectAttempts++;
+
+        console.log(`Reconnect attempt ${reconnectAttempts}/${maxReconnectAttempts}`);
+        setConnectionStatus(false, `Reconnecting... (${reconnectAttempts}/${maxReconnectAttempts})`);
+
+        if (reconnectAttempts > maxReconnectAttempts) {
+            setConnectionStatus(false, 'Connection lost. Please refresh and rejoin.');
+            isReconnecting = false;
+            return;
+        }
+
+        // Close old connection
+        if (conn) {
+            try {
+                conn.close();
+            } catch (e) {
+                console.log('Error closing old connection:', e);
+            }
+        }
+
+        // Create new connection to host
+        conn = peer.connect(hostPeerId, { reliable: true });
+
+        let timeout = setTimeout(() => {
+            console.log('Connection timeout');
+            isReconnecting = false;
+            setTimeout(reconnectToHost, 2000 * reconnectAttempts); // Exponential backoff
+        }, 5000);
+
+        conn.on('open', () => {
+            clearTimeout(timeout);
+            console.log('Reconnected to host!');
+            reconnectAttempts = 0;
+            isReconnecting = false;
+            setConnectionStatus(true);
+
+            // Send rejoin message
+            conn.send({ type: 'REJOIN', name: myName });
+        });
+
+        conn.on('close', () => {
+            console.log('Connection closed');
+            if (!isReconnecting && currentPhase !== STATE.LOBBY) {
+                setTimeout(reconnectToHost, 2000);
+            }
+        });
+
+        conn.on('error', (err) => {
+            clearTimeout(timeout);
+            console.error('Connection error:', err);
+            isReconnecting = false;
+            setTimeout(reconnectToHost, 2000 * reconnectAttempts);
+        });
+
+        conn.on('data', handleData);
+    }
+
+    // Host: Reconnect peer (simpler approach - just reconnect, don't try to reclaim ID)
+    function reconnectHostPeer() {
+        if (isReconnecting) return;
+
+        isReconnecting = true;
+        reconnectAttempts++;
+
+        console.log(`Host reconnect attempt ${reconnectAttempts}/${maxReconnectAttempts}`);
+        els.phaseDisplay.textContent = `Reconnecting... (${reconnectAttempts}/${maxReconnectAttempts})`;
+
+        if (reconnectAttempts > maxReconnectAttempts) {
+            els.phaseDisplay.textContent = 'Connection lost. Restart required.';
+            isReconnecting = false;
+            return;
+        }
+
+        // Try simple reconnect first
+        if (peer && !peer.destroyed) {
+            peer.reconnect();
+
+            setTimeout(() => {
+                if (peer.disconnected) {
+                    console.log('Simple reconnect failed, will retry...');
+                    isReconnecting = false;
+                    setTimeout(reconnectHostPeer, 2000 * reconnectAttempts);
+                } else {
+                    console.log('Reconnected successfully!');
+                    reconnectAttempts = 0;
+                    isReconnecting = false;
+                    resetPhaseDisplay();
+                }
+            }, 3000);
+        } else {
+            // Peer is destroyed, can't recover - user must restart
+            els.phaseDisplay.textContent = 'Connection lost. Please create a new lobby.';
+            isReconnecting = false;
+        }
+    }
+
+    // Handle visibility change (critical for mobile Safari)
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            console.log('Page hidden');
+            // Clear interval when hidden
+            if (connectionCheckInterval) {
+                clearInterval(connectionCheckInterval);
+                connectionCheckInterval = null;
+            }
+        } else {
+            console.log('Page visible - checking connections');
+
+            if (!isLocalMode) {
+                // Restart connection checks
+                startConnectionCheck();
+
+                // Immediately check connection status
+                if (isHost) {
+                    if (peer && peer.disconnected && !isReconnecting) {
+                        console.log('Host peer disconnected while backgrounded');
+                        reconnectHostPeer();
+                    }
+                } else if (conn) {
+                    if (!conn.open && !isReconnecting) {
+                        console.log('Connection lost while backgrounded');
+                        reconnectToHost();
+                    }
+                }
+            }
+        }
+    });
+
+    function resetPhaseDisplay() {
+        if (currentPhase === STATE.LOBBY) {
+            els.phaseDisplay.textContent = "Waiting for host to start...";
+        } else if (currentPhase === STATE.PREP) {
+            els.phaseDisplay.textContent = "Writing clues...";
+        } else if (currentPhase === STATE.SOLVING) {
+            const spectatorName = players.find(p => p.id === activeSpectatorId)?.name || "Unknown";
+            els.phaseDisplay.textContent = `Solving ${spectatorName}'s board`;
+        }
+    }
 
     /**
      * UTILS
@@ -768,7 +953,6 @@
     }
 
     function generateTile(id, existingTiles = []) {
-        // Collect all words already used in existing tiles
         const usedWords = new Set();
         existingTiles.forEach(tile => {
             if (tile.words) {
@@ -776,14 +960,12 @@
             }
         });
 
-        // Pick 4 unique words not in usedWords
         const availableWords = WORDS.filter(w => !usedWords.has(w));
         const shuffled = shuffle(availableWords);
         return {id: id, words: shuffled.slice(0, 4)};
     }
 
     function generateBoardTiles() {
-        // Need 16 unique words for 4 tiles (4 words each)
         const allWords = getRandomWords(16);
 
         return [
@@ -840,7 +1022,6 @@
             ]
         };
 
-        // Default to 4 players if count is not in table or too low
         const table = scoreTable[playerCount] || scoreTable[4];
 
         for (let tier of table) {
@@ -849,16 +1030,15 @@
             }
         }
 
-        return '🍀 Four-leaf clover'; // Fallback
+        return '🍀 Four-leaf clover';
     }
 
-    // NEW: Check for room code in URL
+    // Check for room code in URL
     function checkURLParams() {
         const params = new URLSearchParams(window.location.search);
         const roomCode = params.get('room');
 
         if (roomCode) {
-            // Auto-navigate to join view with pre-filled code
             els.startView.style.display = 'none';
             els.joinView.style.display = 'block';
             document.getElementById('joinCode').value = roomCode;
@@ -866,433 +1046,12 @@
         }
     }
 
-    // Call on page load
     window.addEventListener('DOMContentLoaded', checkURLParams);
-
-    // Heartbeat system to detect dead connections
-    function startHeartbeat() {
-        if (heartbeatInterval) clearInterval(heartbeatInterval);
-
-        heartbeatInterval = setInterval(() => {
-            const now = Date.now();
-
-            if (isHost) {
-                // Host: check all client connections
-                Object.entries(connections).forEach(([peerId, connection]) => {
-                    if (connection.open) {
-                        connection.send({ type: 'HEARTBEAT', timestamp: now });
-
-                        // Check if we haven't heard from this client in 15 seconds
-                        if (lastHeartbeat[peerId] && now - lastHeartbeat[peerId] > 15000) {
-                            console.log(`Connection to ${peerId} seems dead, removing...`);
-                            delete connections[peerId];
-                            delete lastHeartbeat[peerId];
-
-                            // Remove from players list and update
-                            players = players.filter(p => p.id !== peerId);
-                            if (currentPhase === STATE.LOBBY) {
-                                updateHostList();
-                                els.startBtn.disabled = players.length < 2;
-                            }
-                            broadcast({ type: 'PLAYER_UPDATE', players });
-                        }
-                    }
-                });
-            } else if (conn && conn.open) {
-                // Client: send heartbeat to host
-                conn.send({ type: 'HEARTBEAT', timestamp: now });
-
-                // Check if we've received a heartbeat from host recently
-                if (lastHeartbeat['host']) {
-                    const timeSinceHostHeartbeat = now - lastHeartbeat['host'];
-                    if (timeSinceHostHeartbeat > 12000) {
-                        // Haven't heard from host in 12 seconds
-                        console.warn('No heartbeat from host for', timeSinceHostHeartbeat, 'ms');
-                        if (!isReconnecting) {
-                            console.log('Attempting reconnect due to missing heartbeats...');
-                            attemptReconnect();
-                        }
-                    }
-                }
-            } else if (!isLocalMode && !isHost && !isReconnecting) {
-                // Client connection is closed, try to reconnect
-                console.log('Connection closed, attempting reconnect...');
-                attemptReconnect();
-            }
-        }, 5000); // Check every 5 seconds
-    }
-
-    // Client reconnection logic
-    // Client reconnection logic
-    function attemptReconnect() {
-        if (isReconnecting || !hostPeerId || isHost || isLocalMode) return;
-
-        isReconnecting = true;
-        reconnectAttempts++;
-
-        console.log(`Reconnection attempt ${reconnectAttempts}/${maxReconnectAttempts} to host ${hostPeerId}...`);
-
-        if (reconnectAttempts > maxReconnectAttempts) {
-            showWaiting("Connection Lost", "Cannot reach host. Please refresh and rejoin.");
-            isReconnecting = false;
-            return;
-        }
-
-        // Show reconnecting message
-        showWaiting("Reconnecting...", `Attempt ${reconnectAttempts}/${maxReconnectAttempts}`);
-
-        // Create new peer if needed or if current one is destroyed
-        if (!peer || peer.destroyed) {
-            peer = new Peer();
-
-            peer.on('open', (id) => {
-                myPeerId = id;
-                console.log('Client peer created with ID:', id);
-                connectToHost();
-            });
-
-            peer.on('error', (err) => {
-                console.error('Peer error during reconnect:', err);
-                setTimeout(() => {
-                    isReconnecting = false;
-                    attemptReconnect();
-                }, reconnectDelay * Math.min(reconnectAttempts, 5));
-            });
-        } else if (peer.disconnected) {
-            // Try to reconnect existing peer
-            console.log('Reconnecting existing peer...');
-            peer.reconnect();
-            setTimeout(() => {
-                if (peer.disconnected) {
-                    // Reconnect failed, try connecting to host anyway
-                    connectToHost();
-                } else {
-                    connectToHost();
-                }
-            }, 1000);
-        } else {
-            // Peer is fine, just need to reconnect to host
-            connectToHost();
-        }
-    }
-
-    function connectToHost(isInitialConnection = false) {
-        console.log(`Connecting to host ${hostPeerId}...`);
-
-        // Close old connection if exists
-        if (conn && conn.open) {
-            conn.close();
-        }
-
-        conn = peer.connect(hostPeerId, {
-            reliable: true
-        });
-
-        let connectionTimeout = setTimeout(() => {
-            if (!conn || !conn.open) {
-                console.log('Connection timeout');
-                isReconnecting = false;
-                setTimeout(attemptReconnect, reconnectDelay);
-            }
-        }, 5000);
-
-        conn.on('open', () => {
-            clearTimeout(connectionTimeout);
-            console.log('Connected to host!');
-            reconnectAttempts = 0;
-            isReconnecting = false;
-
-            // Initialize host heartbeat tracking
-            lastHeartbeat['host'] = Date.now();
-
-            // Send JOIN for first connection, REJOIN for reconnections
-            if (isInitialConnection) {
-                console.log('Sending JOIN message...');
-                conn.send({ type: 'JOIN', name: myName });
-            } else {
-                console.log('Sending REJOIN message...');
-                conn.send({ type: 'REJOIN', name: myName, oldId: myPeerId });
-            }
-
-            // Hide reconnecting message if not in active game
-            if (currentPhase === STATE.LOBBY || currentPhase === STATE.WAITING) {
-                els.waitingScreen.style.display = 'none';
-                els.lobbyModal.style.display = 'none';
-            }
-
-            startHeartbeat();
-        });
-
-        conn.on('close', () => {
-            console.log('Connection to host closed');
-            if (!isReconnecting && currentPhase !== STATE.LOBBY) {
-                setTimeout(attemptReconnect, reconnectDelay);
-            }
-        });
-
-        conn.on('error', (err) => {
-            clearTimeout(connectionTimeout);
-            console.error('Connection error:', err);
-            if (!isReconnecting) {
-                isReconnecting = false;
-                setTimeout(attemptReconnect, reconnectDelay);
-            }
-        });
-
-        conn.on('data', handleData);
-    }
-
-    // Host reconnection logic - MUST maintain same ID
-    function attemptHostReconnect() {
-        if (isReconnecting || !isHost) return;
-
-        isReconnecting = true;
-        reconnectAttempts++;
-
-        console.log(`Host reconnection attempt ${reconnectAttempts}/${maxReconnectAttempts}...`);
-
-        if (reconnectAttempts > maxReconnectAttempts) {
-            alert('Failed to restore host connection. Please restart the game.');
-            isReconnecting = false;
-            reconnectAttempts = 0;
-            return;
-        }
-
-        els.phaseDisplay.textContent = `Reconnecting... (${reconnectAttempts}/${maxReconnectAttempts})`;
-
-        // Try to reconnect existing peer first
-        if (peer && !peer.destroyed) {
-            console.log('Attempting peer.reconnect()...');
-            peer.reconnect();
-
-            // Check if reconnect worked after 2 seconds
-            setTimeout(() => {
-                if (peer.disconnected) {
-                    alert('peer.reconnect() failed, recreating peer...');
-                    recreateHostPeer();
-                } else {
-                    alert('peer.reconnect() succeeded!');
-                    reconnectAttempts = 0;
-                    isReconnecting = false;
-                    resetPhaseDisplay();
-                }
-            }, 2000);
-        } else {
-            recreateHostPeer();
-        }
-    }
-
-    function recreateHostPeer() {
-        // Destroy old peer if exists
-        if (peer) {
-            peer.destroy();
-        }
-
-        // CRITICAL: Try to reclaim the same peer ID
-        peer = new Peer(hostPeerId, {
-            debug: 2 // Enable debug logging
-        });
-
-        peer.on('open', (id) => {
-            alert('Host peer recreated with ID:' + id);
-
-            if (id !== hostPeerId) {
-                // This is bad - we got a different ID, clients can't reconnect
-                console.error('CRITICAL: Host ID changed from', hostPeerId, 'to', id);
-                alert(`Host ID changed! Clients must reconnect to new code: ${id}\nOld code will not work.`);
-                myPeerId = id;
-                hostPeerId = id;
-                els.roomCode.innerText = id;
-                const shareURL = `${window.location.origin}${window.location.pathname}?room=${id}`;
-                document.getElementById('shareLink').value = shareURL;
-            } else {
-                alert('Successfully reclaimed same host ID!');
-            }
-
-            reconnectAttempts = 0;
-            isReconnecting = false;
-            resetPhaseDisplay();
-
-            startHeartbeat();
-        });
-
-        // Re-setup connection listener for new peer
-        peer.on('connection', (c) => {
-            connections[c.peer] = c;
-            lastHeartbeat[c.peer] = Date.now();
-
-            c.on('data', (data) => {
-                if (data.type === 'HEARTBEAT') {
-                    lastHeartbeat[c.peer] = Date.now();
-                    return;
-                }
-
-                if (data.type === 'JOIN') {
-                    players.push({ id: c.peer, name: data.name, status: 'waiting' });
-                    lastHeartbeat[c.peer] = Date.now();
-                    updateHostList();
-                    broadcast({ type: 'PLAYER_UPDATE', players });
-                    els.startBtn.disabled = players.length < 2;
-                    els.startBtn.innerText = players.length < 2 ? "Waiting for players..." : "Start Game";
-                }
-                else if (data.type === 'REJOIN') {
-                    handleClientReconnect(c.peer, data);
-                }
-                else if (data.type === 'SUBMIT_BOARD') {
-                    handleBoardSubmission(c.peer, data.board);
-                }
-                else if (data.type === 'TILE_MOVE') {
-                    broadcast(data);
-                    handleTileMove(data);
-                }
-                else if (data.type === 'VERIFY') {
-                    verifySolution(data.slots);
-                }
-            });
-
-            c.on('close', () => {
-                console.log(`Client ${c.peer} disconnected`);
-            });
-
-            c.on('error', (err) => {
-                console.error(`Connection error with ${c.peer}:`, err);
-            });
-        });
-
-        peer.on('error', (err) => {
-            alert('Host peer recreation error:' + String(err));
-            if (err.type === 'unavailable-id') {
-                console.log('Peer ID unavailable, waiting before retry...');
-            }
-            setTimeout(() => {
-                isReconnecting = false;
-                attemptHostReconnect();
-            }, reconnectDelay * Math.min(reconnectAttempts, 5));
-        });
-
-        peer.on('disconnected', () => {
-            console.log('Host peer disconnected again');
-            if (!isReconnecting) {
-                setTimeout(attemptHostReconnect, 1000);
-            }
-        });
-    }
-
-    function resetPhaseDisplay() {
-        if (currentPhase === STATE.LOBBY) {
-            els.phaseDisplay.textContent = "Waiting for host to start...";
-        } else if (currentPhase === STATE.PREP) {
-            els.phaseDisplay.textContent = "Writing clues...";
-        } else if (currentPhase === STATE.SOLVING) {
-            const spectatorName = players.find(p => p.id === activeSpectatorId)?.name || "Unknown";
-            els.phaseDisplay.textContent = `Solving ${spectatorName}'s board`;
-        }
-    }
-
-    // Host: handle client reconnection
-    function handleClientReconnect(newPeerId, data) {
-        // Update player ID in list
-        const player = players.find(p => p.name === data.name);
-        if (player) {
-            const oldId = player.id;
-            player.id = newPeerId;
-
-            // Update connections
-            if (connections[oldId]) {
-                delete connections[oldId];
-            }
-
-            // Connection is already set up by peer.on('connection')
-            console.log(`${data.name} reconnected (${oldId} -> ${newPeerId})`);
-
-            // Send current game state to reconnected player
-            broadcast({type: 'PLAYER_UPDATE', players});
-
-            // If in game, send current round state
-            if (currentPhase === STATE.SOLVING && activeSolution) {
-                const roundState = {
-                    spectatorId: activeSpectatorId,
-                    attempt: attemptCount,
-                    clues: activeSolution.clues,
-                    dock: getCurrentDockTiles(),
-                    slots: getCurrentSlots(),
-                    playerIndex: players.findIndex(p => p.id === activeSpectatorId)
-                };
-                connections[newPeerId].send({type: 'START_ROUND', state: roundState});
-            }
-        }
-    }
-
-    // Helper to get current dock tiles
-    function getCurrentDockTiles() {
-        const tiles = [];
-        els.dock.querySelectorAll('.tile').forEach(tileEl => {
-            const id = tileEl.dataset.id;
-            const words = JSON.parse(tileEl.dataset.originalWords || '[]');
-            tiles.push({id, words});
-        });
-        return tiles;
-    }
-
-    // Helper to get current slot states
-    function getCurrentSlots() {
-        const slots = {tl: null, tr: null, bl: null, br: null};
-        ['tl', 'tr', 'bl', 'br'].forEach(slotKey => {
-            const slot = document.querySelector(`.slot.${slotKey}`);
-            const tileEl = slot.querySelector('.tile');
-            if (tileEl) {
-                const id = tileEl.dataset.id;
-                const words = JSON.parse(tileEl.dataset.originalWords || '[]');
-                const rot = parseInt(tileEl.dataset.rot);
-                slots[slotKey] = {
-                    tile: {id, words},
-                    rot,
-                    locked: tileEl.classList.contains('locked')
-                };
-            }
-        });
-        return slots;
-    }
-
-    function startLocalGame() {
-        isLocalMode = true;
-        isHost = false;
-        myPeerId = 'local-player';
-        myName = "Local Player";
-        totalScore = 0;
-
-        els.lobbyModal.style.display = 'none';
-        startPrepPhase();
-    }
-
-    function handlePlayAgain() {
-        if (isLocalMode) {
-            // Reset local game
-            totalScore = 0;
-            els.scoreDisplay.textContent = 'Score: 0';
-            els.playAgainBtn.style.display = 'none';
-            startPrepPhase();
-        } else if (isHost) {
-            // Reset multiplayer game
-            totalScore = 0;
-            hostLobbyState = {};
-            players.forEach(p => p.status = 'waiting');
-
-            // Notify all clients
-            broadcast({type: 'PLAY_AGAIN'});
-
-            // Start prep for everyone
-            broadcast({type: 'START_PREP', players});
-            startPrepPhase();
-        }
-    }
 
     /**
      * TILE & BOARD RENDERER
      */
     function getRotatedWords(words, rotation) {
-        // rotation 0: [0,1,2,3]
-        // rotation 1: [3,0,1,2]
         const w = [...words];
         if (rotation === 0) return w;
         if (rotation === 1) return [w[3], w[0], w[1], w[2]];
@@ -1316,7 +1075,6 @@
         el.className = `tile ${isLocked ? 'locked' : ''}`;
         el.dataset.id = tile.id;
         el.dataset.rot = rotation;
-        // CRITICAL FIX: Store original words for rotation logic
         el.dataset.originalWords = JSON.stringify(tile.words);
 
         if (isDraggable && !isLocked) el.draggable = true;
@@ -1331,19 +1089,15 @@
 
         updateTileVisuals(el, rotation, tile.words);
 
-        // Rotation Logic (Click)
         el.addEventListener('click', (e) => {
-            // Validation: Locked? Prep? Spectating?
             if (isLocked || currentPhase === STATE.PREP) return;
-            if (el.classList.contains('locked')) return; // Can't rotate locked tiles
-            if (myPeerId === activeSpectatorId) return; // Spectator cannot rotate
+            if (el.classList.contains('locked')) return;
+            if (myPeerId === activeSpectatorId) return;
 
-            // Only allow rotation in Dock or Board during solving
             if (currentPhase === STATE.SOLVING && isDraggable) {
                 let r = parseInt(el.dataset.rot);
                 r = (r + 1) % 4;
 
-                // Find parent to define slot
                 const parent = el.parentElement;
                 let targetSlot = 'dock';
                 if (parent.classList.contains('slot')) {
@@ -1353,7 +1107,6 @@
                     if (parent.classList.contains('br')) targetSlot = 'br';
                 }
 
-                // Send Move Immediately
                 const moveData = {
                     type: 'TILE_MOVE',
                     tileId: tile.id,
@@ -1362,18 +1115,16 @@
                 };
 
                 if (isLocalMode) {
-                    // Local mode - just update visually
                     handleTileMove(moveData);
                 } else if (isHost) {
-                    handleTileMove(moveData); // Update local
-                    broadcast(moveData); // Send to all
+                    handleTileMove(moveData);
+                    broadcast(moveData);
                 } else {
-                    conn.send(moveData); // Send to host
+                    conn.send(moveData);
                 }
             }
         });
 
-        // Drag Logic
         if (isDraggable && !isLocked) {
             el.addEventListener('dragstart', (e) => {
                 if (myPeerId === activeSpectatorId) {
@@ -1394,14 +1145,10 @@
     }
 
     function renderBoard(layout, isInteractive) {
-        // layout: { clues: {top, right...}, slots: {tl: {tile, rot}, ...}, dock: [tiles] }
-
-        // 1. Clues
         ['top', 'right', 'bottom', 'left'].forEach(dir => {
             const input = document.getElementById(`clue-${dir}`);
             const parent = input.parentElement;
 
-            // Remove old display if exists
             const oldDisp = parent.querySelector('.clue-display');
             if (oldDisp) oldDisp.remove();
 
@@ -1418,7 +1165,6 @@
             }
         });
 
-        // 2. Clear Slots & Dock - RESET STYLING
         document.querySelectorAll('.slot').forEach(s => {
             s.innerHTML = '';
             s.style.borderColor = '';
@@ -1427,7 +1173,6 @@
         });
         els.dock.innerHTML = '';
 
-        // 3. Place Tiles
         if (layout.slots) {
             Object.entries(layout.slots).forEach(([key, data]) => {
                 if (data) {
@@ -1440,7 +1185,7 @@
 
         if (layout.dock) {
             layout.dock.forEach(tile => {
-                const t = createTileEl(tile, 0, isInteractive); // Dock always rot 0 initially
+                const t = createTileEl(tile, 0, isInteractive);
                 els.dock.appendChild(t);
             });
         }
@@ -1449,9 +1194,6 @@
     /**
      * GAME LOGIC
      */
-
-    // --- PHASE 1: PREP (Individual) ---
-    // --- PHASE 1: PREP (Individual) ---
     function startPrepPhase() {
         currentPhase = STATE.PREP;
         els.lobbyModal.style.display = 'none';
@@ -1466,17 +1208,15 @@
         els.playAgainBtn.style.display = 'none';
         els.phaseDisplay.textContent = isLocalMode ? "Prep Phase" : "Writing Clues...";
 
-        // Generate my local board
         const tiles = generateBoardTiles();
         const slots = ['tl', 'tr', 'bl', 'br'];
-        shuffle(slots); // Randomize slot assignment
+        shuffle(slots);
 
         myBoard = {
             solution: {},
             clues: {top: '', right: '', bottom: '', left: ''}
         };
 
-        // Reset all slot styling before placing tiles
         document.querySelectorAll('.slot').forEach(slot => {
             slot.style.borderColor = '';
             slot.style.borderWidth = '';
@@ -1484,39 +1224,32 @@
             slot.innerHTML = '';
         });
 
-        // Place them visually in slots immediately (fixed for Prep)
         slots.forEach((s, i) => {
             const rot = Math.floor(Math.random() * 4);
             myBoard.solution[s] = {tile: tiles[i], rot: rot};
 
             const slotEl = document.querySelector(`.slot.${s}`);
-            slotEl.appendChild(createTileEl(tiles[i], rot, false, true)); // Not draggable in prep
+            slotEl.appendChild(createTileEl(tiles[i], rot, false, true));
         });
 
-        // Clear dock
         els.dock.innerHTML = '';
 
-        // Clear and reset clue inputs
         ['top', 'right', 'bottom', 'left'].forEach(dir => {
             const input = document.getElementById(`clue-${dir}`);
             const parent = input.parentElement;
 
-            // Remove any old clue-display divs
             const oldDisp = parent.querySelector('.clue-display');
             if (oldDisp) oldDisp.remove();
 
-            // Show and reset input
             input.style.display = 'block';
             input.value = '';
             input.disabled = false;
 
-            // Re-attach listener (remove old ones first)
             input.removeEventListener('input', checkPrepReady);
             input.addEventListener('input', checkPrepReady);
         });
     }
 
-    // Prevent spaces in clue inputs
     function preventSpaces(e) {
         if (e.key === ' ' || e.key === 'Spacebar') {
             e.preventDefault();
@@ -1524,7 +1257,6 @@
         }
     }
 
-    // Add space prevention to all clue inputs
     ['clue-top', 'clue-right', 'clue-bottom', 'clue-left'].forEach(id => {
         const input = document.getElementById(id);
         input.addEventListener('keydown', preventSpaces);
@@ -1542,11 +1274,9 @@
 
     els.actionBtn.addEventListener('click', () => {
         if (currentPhase === STATE.PREP) {
-            // Submit board
             els.actionBtn.style.display = 'none';
 
             if (isLocalMode) {
-                // In local mode, go directly to solving
                 setTimeout(() => startLocalSolving(), 500);
             } else {
                 showWaiting("Waiting for others", "Everyone needs to finish writing clues.");
@@ -1567,10 +1297,8 @@
         currentPhase = STATE.SOLVING;
         attemptCount = 1;
 
-        // Store solution
         activeSolution = {solution: myBoard.solution};
 
-        // Create tile pool (4 real + 1 decoy)
         const realTiles = [
             myBoard.solution.tl.tile,
             myBoard.solution.tr.tile,
@@ -1580,7 +1308,6 @@
         const decoy = generateTile('decoy', realTiles);
         const pool = shuffle([...realTiles, decoy]);
 
-        // Render solving state
         renderBoard({
             clues: myBoard.clues,
             slots: {tl: null, tr: null, bl: null, br: null},
@@ -1593,11 +1320,9 @@
         els.actionBtn.textContent = "Verify Solution";
         els.actionBtn.style.display = "block";
 
-        // Initial check - should be disabled
         checkAllSlotsFilled();
     }
 
-    // --- PHASE 2: RESOLUTION (Team) ---
     function startResolutionRound(spectatorId, attempt) {
         activeSpectatorId = spectatorId;
         attemptCount = attempt;
@@ -1615,10 +1340,8 @@
         els.actionBtn.style.display = "block";
         els.nextBoardBtn.style.display = 'none';
 
-        // Setup Board for everyone
         els.waitingScreen.style.display = 'none';
 
-        // Initial check for filled slots
         checkAllSlotsFilled();
     }
 
@@ -1626,24 +1349,26 @@
      * HOST LOGIC
      */
     function hostStartGame() {
-        if (players.length < 2) return alert("Need 2+ players.");
+        if (players.length < 2) {
+            els.phaseDisplay.textContent = "Need 2+ players to start";
+            setTimeout(() => {
+                els.phaseDisplay.textContent = "Waiting...";
+            }, 2000);
+            return;
+        }
 
-        // Broadcast Prep Start with player list
         broadcast({type: 'START_PREP', players});
-        startPrepPhase(); // Host does it too
+        startPrepPhase();
     }
 
     function handleBoardSubmission(pid, board) {
         hostLobbyState[pid] = board;
 
-        // Mark player as ready in UI
         const p = players.find(x => x.id === pid);
         if (p) p.status = 'done';
         updateHostList();
 
-        // Check if all ready
         if (Object.keys(hostLobbyState).length === players.length) {
-            // All boards received. Start first resolution round.
             players = shuffle(players);
             setTimeout(() => hostNextRound(0), 1000);
         }
@@ -1700,37 +1425,32 @@
             if (correctCount === 4) {
                 totalScore += 6;
                 broadcast({type: 'ROUND_RESULT', result: 'PERFECT', score: 6, feedback, total: totalScore});
-                // Don't auto-advance - wait for host
             } else {
                 broadcast({type: 'ROUND_RESULT', result: 'TRY_AGAIN', feedback});
                 attemptCount = 2;
             }
         } else {
             totalScore += correctCount;
-            // Send solution data for reveal
             broadcast({
                 type: 'ROUND_RESULT',
                 result: 'DONE',
                 score: correctCount,
                 feedback,
                 total: totalScore,
-                solution: sol  // Include the correct solution
+                solution: sol
             });
-            // Don't auto-advance - wait for host
         }
     }
 
     /**
      * NETWORK HANDLERS
      */
-
     function setupHost() {
         els.startView.style.display = 'none';
         els.createHostView.style.display = 'block';
     }
 
     function backToStart() {
-        // Re-enable join button when going back
         if (els.joinBtn) {
             els.joinBtn.disabled = false;
             els.joinBtn.textContent = "Join";
@@ -1748,10 +1468,9 @@
 
         peer.on('open', (id) => {
             myPeerId = id;
-            hostPeerId = id; // Store for reconnection
+            hostPeerId = id;
             els.roomCode.innerText = id;
 
-            // Generate shareable link
             const shareURL = `${window.location.origin}${window.location.pathname}?room=${id}`;
             document.getElementById('shareLink').value = shareURL;
 
@@ -1761,31 +1480,46 @@
             players.push({ id: myPeerId, name: myName, status: 'waiting' });
             updateHostList();
 
-            startHeartbeat();
+            startConnectionCheck();
         });
 
-        // Set up connection listener directly (not in separate function)
         peer.on('connection', (c) => {
             connections[c.peer] = c;
-            lastHeartbeat[c.peer] = Date.now();
 
             c.on('data', (data) => {
-                // Update heartbeat timestamp
-                if (data.type === 'HEARTBEAT') {
-                    lastHeartbeat[c.peer] = Date.now();
-                    return;
-                }
-
                 if (data.type === 'JOIN') {
                     players.push({ id: c.peer, name: data.name, status: 'waiting' });
-                    lastHeartbeat[c.peer] = Date.now();
                     updateHostList();
                     broadcast({ type: 'PLAYER_UPDATE', players });
                     els.startBtn.disabled = players.length < 2;
                     els.startBtn.innerText = players.length < 2 ? "Waiting for players..." : "Start Game";
                 }
                 else if (data.type === 'REJOIN') {
-                    handleClientReconnect(c.peer, data);
+                    const player = players.find(p => p.name === data.name);
+                    if (player) {
+                        const oldId = player.id;
+                        player.id = c.peer;
+
+                        if (connections[oldId]) {
+                            delete connections[oldId];
+                        }
+
+                        console.log(`${data.name} reconnected`);
+
+                        broadcast({type: 'PLAYER_UPDATE', players});
+
+                        if (currentPhase === STATE.SOLVING && activeSolution) {
+                            const roundState = {
+                                spectatorId: activeSpectatorId,
+                                attempt: attemptCount,
+                                clues: activeSolution.clues,
+                                dock: getCurrentDockTiles(),
+                                slots: getCurrentSlots(),
+                                playerIndex: players.findIndex(p => p.id === activeSpectatorId)
+                            };
+                            c.send({type: 'START_ROUND', state: roundState});
+                        }
+                    }
                 }
                 else if (data.type === 'SUBMIT_BOARD') {
                     handleBoardSubmission(c.peer, data.board);
@@ -1809,38 +1543,55 @@
         });
 
         peer.on('disconnected', () => {
-            console.log('Host peer disconnected!');
+            console.log('Host peer disconnected');
             if (!peer.destroyed && !isReconnecting) {
-                console.log('Attempting to reconnect host peer...');
-                // First try simple reconnect
-                peer.reconnect();
-
-                // If that doesn't work within 3 seconds, do full reconnect
-                setTimeout(() => {
-                    if (peer.disconnected && !isReconnecting) {
-                        attemptHostReconnect();
-                    }
-                }, 3000);
+                reconnectHostPeer();
             }
         });
 
         peer.on('error', (err) => {
-            alert('Host peer error:' + String(err));
+            console.error('Host peer error:', err);
             if (err.type === 'disconnected' || err.type === 'network') {
                 if (!isReconnecting) {
-                    attemptHostReconnect();
+                    reconnectHostPeer();
                 }
-            } else if (err.type === 'peer-unavailable') {
-                console.log('Client connection failed');
             }
         });
+    }
+
+    function getCurrentDockTiles() {
+        const tiles = [];
+        els.dock.querySelectorAll('.tile').forEach(tileEl => {
+            const id = tileEl.dataset.id;
+            const words = JSON.parse(tileEl.dataset.originalWords || '[]');
+            tiles.push({id, words});
+        });
+        return tiles;
+    }
+
+    function getCurrentSlots() {
+        const slots = {tl: null, tr: null, bl: null, br: null};
+        ['tl', 'tr', 'bl', 'br'].forEach(slotKey => {
+            const slot = document.querySelector(`.slot.${slotKey}`);
+            const tileEl = slot.querySelector('.tile');
+            if (tileEl) {
+                const id = tileEl.dataset.id;
+                const words = JSON.parse(tileEl.dataset.originalWords || '[]');
+                const rot = parseInt(tileEl.dataset.rot);
+                slots[slotKey] = {
+                    tile: {id, words},
+                    rot,
+                    locked: tileEl.classList.contains('locked')
+                };
+            }
+        });
+        return slots;
     }
 
     function copyShareLink() {
         const linkInput = document.getElementById('shareLink');
         const copyBtn = document.querySelector('button[onclick="copyShareLink()"]');
 
-        // Method 1: Modern Clipboard API (works on HTTPS and localhost)
         if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(linkInput.value)
                 .then(() => {
@@ -1848,11 +1599,9 @@
                 })
                 .catch(err => {
                     console.error('Clipboard API failed:', err);
-                    // Fallback to selection method
                     fallbackCopy(linkInput, copyBtn);
                 });
         } else {
-            // Fallback for older browsers or non-HTTPS
             fallbackCopy(linkInput, copyBtn);
         }
     }
@@ -1860,19 +1609,20 @@
     function fallbackCopy(input, btn) {
         try {
             input.select();
-            input.setSelectionRange(0, 99999); // For mobile devices
+            input.setSelectionRange(0, 99999);
 
-            // Try execCommand as fallback
             const successful = document.execCommand('copy');
 
             if (successful) {
                 showCopyFeedback(btn);
             } else {
-                alert('Please manually copy the link: ' + input.value);
+                input.focus();
+                input.select();
             }
         } catch (err) {
             console.error('Fallback copy failed:', err);
-            alert('Please manually copy the link: ' + input.value);
+            input.focus();
+            input.select();
         }
     }
 
@@ -1893,88 +1643,112 @@
         }, 2000);
     }
 
-
     function setupJoin() {
         els.startView.style.display = 'none';
         els.joinView.style.display = 'block';
     }
 
     function joinGame() {
-        // Prevent double-click
         if (els.joinBtn.disabled) return;
 
         myName = document.getElementById('playerName').value.trim();
         if (!myName) {
-            alert("Please enter a name");
+            els.phaseDisplay.textContent = "Please enter a name";
+            setTimeout(() => els.phaseDisplay.textContent = "Waiting...", 2000);
             return;
         }
 
         const code = document.getElementById('joinCode').value.trim();
 
         if (!code) {
-            alert("Please enter a room code");
+            els.phaseDisplay.textContent = "Please enter a room code";
+            setTimeout(() => els.phaseDisplay.textContent = "Waiting...", 2000);
             return;
         }
 
-        hostPeerId = code; // Store for reconnection
+        hostPeerId = code;
 
-        // Disable button immediately
         els.joinBtn.disabled = true;
         els.joinBtn.textContent = "Connecting...";
 
         peer = new Peer();
         peer.on('open', (id) => {
             myPeerId = id;
-            // First time connecting - use JOIN, not REJOIN
-            connectToHost(true); // Pass true for initial connection
+            console.log('Client peer ID:', id);
+
+            conn = peer.connect(hostPeerId, { reliable: true });
+
+            let timeout = setTimeout(() => {
+                els.joinBtn.disabled = false;
+                els.joinBtn.textContent = "Join";
+                els.phaseDisplay.textContent = "Connection timeout. Try again.";
+                setTimeout(() => els.phaseDisplay.textContent = "Waiting...", 3000);
+            }, 10000);
+
+            conn.on('open', () => {
+                clearTimeout(timeout);
+                console.log('Connected to host!');
+                setConnectionStatus(true);
+
+                conn.send({ type: 'JOIN', name: myName });
+
+                els.lobbyModal.style.display = 'none';
+                els.phaseDisplay.textContent = "Waiting for host to start...";
+
+                startConnectionCheck();
+            });
+
+            conn.on('close', () => {
+                console.log('Connection closed');
+                if (!isReconnecting && currentPhase !== STATE.LOBBY) {
+                    setTimeout(reconnectToHost, 2000);
+                }
+            });
+
+            conn.on('error', (err) => {
+                clearTimeout(timeout);
+                console.error('Connection error:', err);
+                els.joinBtn.disabled = false;
+                els.joinBtn.textContent = "Join";
+                els.phaseDisplay.textContent = "Connection failed. Try again.";
+                setTimeout(() => els.phaseDisplay.textContent = "Waiting...", 3000);
+            });
+
+            conn.on('data', handleData);
         });
 
         peer.on('disconnected', () => {
             console.log('Client peer disconnected');
             if (!peer.destroyed && !isReconnecting) {
-                console.log('Attempting to reconnect peer...');
                 peer.reconnect();
             }
         });
 
         peer.on('error', (err) => {
             console.error('Client peer error:', err);
-            if (!conn || !conn.open) {
-                alert('Connection error. Please try again.');
-                els.joinBtn.disabled = false;
-                els.joinBtn.textContent = "Join";
-            }
+            els.joinBtn.disabled = false;
+            els.joinBtn.textContent = "Join";
         });
     }
 
     function broadcast(msg) {
-        Object.values(connections).forEach(c => c.send(msg));
+        Object.values(connections).forEach(c => {
+            if (c.open) {
+                try {
+                    c.send(msg);
+                } catch (e) {
+                    console.error('Error broadcasting to', c.peer, e);
+                }
+            }
+        });
         if (isHost) handleData(msg);
     }
 
     function handleData(data) {
-        // Handle heartbeat
-        if (data.type === 'HEARTBEAT') {
-            // Track that we received a heartbeat from host
-            if (!isHost) {
-                lastHeartbeat['host'] = Date.now();
-            }
-
-            // Respond to heartbeat
-            if (!isHost && conn && conn.open) {
-                conn.send({ type: 'HEARTBEAT_ACK', timestamp: Date.now() });
-            }
-            return;
-        }
-
-        if (data.type === 'HEARTBEAT_ACK') {
-            // Host received acknowledgment from client
-            return;
-        }
         if (data.type === 'PLAYER_UPDATE') {
-            players = data.players; // Update client's player list
+            players = data.players;
         } else if (data.type === 'START_PREP') {
-            if (data.players) players = data.players; // Sync players at game start
+            if (data.players) players = data.players;
             startPrepPhase();
         } else if (data.type === 'START_ROUND') {
             handleStartRound(data.state);
@@ -1995,14 +1769,11 @@
             els.scoreResult.textContent = data.result || '';
             els.actionBtn.style.display = 'none';
             els.nextBoardBtn.style.display = 'none';
-            // Show play again button (only for host in multiplayer)
             if (isLocalMode || isHost) {
                 els.playAgainBtn.style.display = 'block';
             }
         }
     }
-
-    // --- SHARED HANDLERS ---
 
     function handleStartRound(state) {
         activeSpectatorId = state.spectatorId;
@@ -2030,7 +1801,6 @@
     }
 
     function handleRoundResult(data) {
-        // Update score from server
         if (data.total !== undefined) {
             totalScore = data.total;
         }
@@ -2042,14 +1812,12 @@
             document.querySelectorAll('.tile').forEach(t => t.classList.add('locked'));
             els.actionBtn.style.display = 'none';
 
-            // Show next board button for host in multiplayer
             if (isHost && !isLocalMode) {
                 const idx = players.findIndex(p => p.id === activeSpectatorId);
                 const isLastBoard = (idx === players.length - 1);
                 els.nextBoardBtn.textContent = isLastBoard ? "End Game" : "Next Board";
                 els.nextBoardBtn.style.display = 'block';
             } else if (!isLocalMode) {
-                // Show waiting message for non-host players
                 els.instruction.textContent = "Perfect! +6 Points!\nWaiting for host to continue...";
                 els.instruction.style.color = 'var(--muted)';
             }
@@ -2078,7 +1846,6 @@
         } else if (data.result === 'DONE') {
             els.instruction.textContent = `Round Done! +${data.score} Points.`;
 
-            // Reveal the solution
             if (data.solution) {
                 ['tl', 'tr', 'bl', 'br'].forEach(slotKey => {
                     const slot = document.querySelector(`.slot.${slotKey}`);
@@ -2087,7 +1854,6 @@
                     const correctAnswer = data.solution[slotKey];
 
                     if (isCorrect) {
-                        // Correct slot - keep green border on slot
                         slot.style.borderColor = 'var(--ok)';
                         slot.style.borderWidth = '3px';
                         slot.style.borderStyle = 'solid';
@@ -2096,33 +1862,25 @@
                             currentTile.classList.add('locked');
                         }
                     } else {
-                        // WRONG slot - highlight the SLOT with red border
                         slot.style.borderColor = 'var(--danger)';
                         slot.style.borderWidth = '3px';
                         slot.style.borderStyle = 'solid';
 
-                        // Find the correct tile in the dock and move it to the slot
                         const correctTileInDock = Array.from(els.dock.querySelectorAll('.tile'))
                             .find(t => t.dataset.id === correctAnswer.tile.id);
 
                         if (correctTileInDock) {
-                            // Move correct tile from dock to slot
                             slot.appendChild(correctTileInDock);
 
-                            // Update its rotation and lock it
                             const originalWords = JSON.parse(correctTileInDock.dataset.originalWords || '[]');
                             updateTileVisuals(correctTileInDock, correctAnswer.rot, originalWords);
                             correctTileInDock.classList.add('locked');
 
-                            // If there was a wrong tile, move it to dock
                             if (currentTile && currentTile !== correctTileInDock) {
                                 els.dock.appendChild(currentTile);
                                 currentTile.classList.add('locked');
                             }
                         } else {
-                            // Correct tile not in dock (shouldn't happen, but handle gracefully)
-                            console.warn(`Correct tile ${correctAnswer.tile.id} not found in dock for slot ${slotKey}`);
-                            // Lock whatever is there
                             if (currentTile) {
                                 currentTile.classList.add('locked');
                             }
@@ -2137,13 +1895,11 @@
             if (isLocalMode) {
                 els.playAgainBtn.style.display = 'block';
             } else if (isHost) {
-                // Show next board button for host in multiplayer
                 const idx = players.findIndex(p => p.id === activeSpectatorId);
                 const isLastBoard = (idx === players.length - 1);
                 els.nextBoardBtn.textContent = isLastBoard ? "End Game" : "Next Board";
                 els.nextBoardBtn.style.display = 'block';
             } else {
-                // Show waiting message for non-host players
                 els.instruction.textContent = `Round Done! +${data.score} Points.\nWaiting for host to start next board...`;
                 els.instruction.style.color = 'var(--muted)';
             }
@@ -2162,7 +1918,6 @@
         const msg = {type: 'VERIFY', slots};
 
         if (isLocalMode) {
-            // Handle locally
             const result = verifyLocalSolution(slots);
             handleRoundResult(result);
         } else if (isHost) {
@@ -2201,19 +1956,18 @@
                 score: correctCount,
                 feedback,
                 total: totalScore,
-                solution: sol  // Include the correct solution
+                solution: sol
             };
         }
     }
 
-    // DRAG AND DROP HANDLERS (Global)
+    // DRAG AND DROP HANDLERS
     const slotsAndDock = [...document.querySelectorAll('.slot'), els.dock];
 
     slotsAndDock.forEach(container => {
         container.addEventListener('dragover', e => {
             e.preventDefault();
 
-            // Prevent drops if blocked
             if (currentPhase === STATE.SOLVING && myPeerId === activeSpectatorId) return;
             if (currentPhase === STATE.PREP) return;
 
@@ -2238,13 +1992,10 @@
 
             const sourceContainer = draggedTile.parentElement;
 
-            // Determine if we're dropping onto the dock or a slot
             const isDock = container.id === 'dock';
 
-            // Check if target slot already has a tile
             const existingTile = container.querySelector('.tile');
 
-            // Determine target slot name
             let target = 'dock';
             if (container.classList.contains('slot')) {
                 if (container.classList.contains('tl')) target = 'tl';
@@ -2253,12 +2004,9 @@
                 if (container.classList.contains('br')) target = 'br';
             }
 
-            // SWAP only if target has a tile AND target is a slot (not dock)
             if (existingTile && existingTile !== draggedTile && !existingTile.classList.contains('locked') && !isDock) {
-                // Swap the tiles
                 sourceContainer.appendChild(existingTile);
 
-                // Send swap move for existing tile
                 let sourceTarget = 'dock';
                 if (sourceContainer.classList.contains('slot')) {
                     if (sourceContainer.classList.contains('tl')) sourceTarget = 'tl';
@@ -2275,18 +2023,14 @@
                 };
 
                 if (isLocalMode) {
-                    // Local mode - already swapped in DOM
+                    // Already swapped in DOM
                 } else if (isHost) {
                     broadcast(swapData);
                 } else {
                     conn.send(swapData);
                 }
-            } else if (isDock && existingTile && existingTile !== draggedTile) {
-                // Dropping onto dock with other tiles - just append (no swap)
-                // Do nothing special, just proceed with normal move
             }
 
-            // Move dragged tile to target
             container.appendChild(draggedTile);
 
             const moveData = {
@@ -2297,7 +2041,7 @@
             };
 
             if (isLocalMode) {
-                // Local mode - just update DOM (already done)
+                // Already moved in DOM
             } else if (isHost) {
                 broadcast(moveData);
                 handleTileMove(moveData);
@@ -2305,7 +2049,6 @@
                 conn.send(moveData);
             }
 
-            // Check if all slots are filled after move
             checkAllSlotsFilled();
         });
     });
@@ -2331,6 +2074,35 @@
         hostNextRound(idx + 1);
     }
 
+    function startLocalGame() {
+        isLocalMode = true;
+        isHost = false;
+        myPeerId = 'local-player';
+        myName = "Local Player";
+        totalScore = 0;
+
+        els.lobbyModal.style.display = 'none';
+        startPrepPhase();
+    }
+
+    function handlePlayAgain() {
+        if (isLocalMode) {
+            totalScore = 0;
+            els.scoreDisplay.textContent = 'Score: 0';
+            els.playAgainBtn.style.display = 'none';
+            startPrepPhase();
+        } else if (isHost) {
+            totalScore = 0;
+            hostLobbyState = {};
+            players.forEach(p => p.status = 'waiting');
+
+            broadcast({type: 'PLAY_AGAIN'});
+
+            broadcast({type: 'START_PREP', players});
+            startPrepPhase();
+        }
+    }
+
     /**
      * UI HELPERS
      */
@@ -2348,36 +2120,6 @@
         els.waitTitle.textContent = title;
         els.waitMsg.textContent = msg;
     }
-
-    // Handle page visibility changes (important for mobile)
-    document.addEventListener('visibilitychange', () => {
-        if (document.hidden) {
-            console.log('Page hidden - connections may be suspended');
-        } else {
-            console.log('Page visible - checking connections');
-
-            if (!isLocalMode) {
-                if (isHost) {
-                    // Check if host peer is still connected
-                    if (peer && peer.disconnected && !isReconnecting) {
-                        console.log('Host peer disconnected while backgrounded, reconnecting...');
-                        attemptHostReconnect();
-                    }
-                } else {
-                    // Client reconnection
-                    if (conn && !conn.open && !isReconnecting) {
-                        console.log('Connection lost while backgrounded, reconnecting...');
-                        attemptReconnect();
-                    }
-                }
-
-                // Restart heartbeat if needed
-                if (!heartbeatInterval) {
-                    startHeartbeat();
-                }
-            }
-        }
-    });
 
 </script>
 </body>

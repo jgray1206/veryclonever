@@ -841,23 +841,9 @@
 
                 if (id === originalHostPeerId) {
                     console.log('✅ SUCCESS! Reclaimed peer ID:', id);
-                    myPeerId = id; // 🔥 UPDATE myPeerId!
+                    myPeerId = id;
                     reconnectAttempts = 0;
                     isReconnecting = false;
-
-                    // Log current game state to ensure nothing is lost
-                    console.log('📊 Current game state after reclaim:', {
-                        myPeerId,
-                        players: players.map(p => `${p.name}:${p.id}:${p.status}`),
-                        hostLobbyState: Object.keys(hostLobbyState),
-                        hostLobbyStateDetails: Object.entries(hostLobbyState).map(([id, board]) => ({
-                            playerId: id,
-                            playerName: players.find(p => p.id === id)?.name,
-                            hasBoard: !!board
-                        })),
-                        currentPhase,
-                        totalScore
-                    });
 
                     els.phaseDisplay.textContent = 'Reconnected!';
                     setTimeout(resetPhaseDisplay, 2000);
@@ -897,26 +883,19 @@
         console.log('🔧 Setting up host connection handler');
 
         peer.on('connection', (c) => {
-            console.log('🔗 New connection from:', c.peer);
-            console.log('   Current connections:', Object.keys(connections));
+            console.log('New connection:', c.peer);
 
             // Check if we're overwriting an existing connection
             if (connections[c.peer]) {
-                console.log('   ⚠️ OVERWRITING existing connection for', c.peer);
-                // Close the old connection
+                console.log('Closing old connection for', c.peer);
                 try {
                     connections[c.peer].close();
-                } catch (e) {
-                    console.log('   Error closing old connection:', e);
-                }
+                } catch (e) {}
             }
 
             connections[c.peer] = c;
-            console.log('   Updated connections:', Object.keys(connections));
 
             c.on('data', (data) => {
-                console.log('📨 Host received from', c.peer, ':', data.type || data);
-
                 // Handle PING
                 if (data.type === 'PING') {
                     try {
@@ -980,11 +959,6 @@
                     }
 
                     console.log(`✅ ${data.name} reconnected successfully`);
-                    console.log('Current state:', {
-                        players: players.map(p => `${p.name}:${p.id}`),
-                        lobbyState: Object.keys(hostLobbyState),
-                        currentPhase: currentPhase
-                    });
 
                     broadcast({type: 'PLAYER_UPDATE', players});
 
@@ -1081,45 +1055,17 @@
     });
 
     function testHostConnection() {
-        console.log('🔍 Testing host...');
-
         if (!peer || peer.destroyed) {
-            console.log('❌ Peer destroyed');
             reconnectHostPeer();
             return;
         }
 
         if (peer.disconnected) {
-            console.log('⚠️ Peer disconnected');
             reconnectHostPeer();
             return;
         }
 
-        // Clean up dead client connections
-        // BUT: Don't remove players during PREP phase - they might be reconnecting!
-        let deadCount = 0;
-        Object.entries(connections).forEach(([id, c]) => {
-            if (!c.open) {
-                console.log(`Connection ${id} is not open`);
-
-                // Only remove if not in PREP phase (or if in LOBBY phase)
-                if (currentPhase !== STATE.PREP) {
-                    console.log(`Removing dead connection: ${id}`);
-                    delete connections[id];
-                    players = players.filter(p => p.id !== id);
-                    deadCount++;
-                } else {
-                    console.log(`Keeping player ${id} during PREP - they might reconnect`);
-                }
-            }
-        });
-
-        if (deadCount > 0) {
-            updateHostList();
-            broadcast({ type: 'PLAYER_UPDATE', players });
-        }
-
-        console.log('✅ Host OK');
+        // Connection is healthy - cleanup handled by c.on('close') handlers
     }
 
     function testClientConnection() {
@@ -2027,35 +1973,27 @@
     }
 
     function broadcast(msg) {
-        console.log('📡 Broadcasting:', msg.type, 'to', Object.keys(connections).length, 'connections');
         Object.entries(connections).forEach(([peerId, c]) => {
-            console.log(`  → Peer ${peerId}: open=${c.open}`);
             if (c.open) {
                 try {
                     c.send(msg);
-                    console.log('    ✅ Sent successfully');
                 } catch (e) {
-                    console.error('    ❌ Error:', e);
+                    console.error('Error broadcasting to', peerId, e);
                 }
-            } else {
-                console.log('    ⚠️ Skipped (connection closed)');
             }
         });
         if (isHost) handleData(msg);
     }
 
     function handleData(data) {
-        console.log('📩 Received:', data.type || data);
-
-        // Handle PONG - ADD THIS AT THE TOP OF handleData()
+        // Handle PONG
         if (data.type === 'PONG') {
-            console.log('📥 PONG received');
             if (pongTimeout) {
                 clearTimeout(pongTimeout);
                 pongTimeout = null;
             }
             pendingPong = false;
-            missedPongs = 0; // Reset counter on successful PONG
+            missedPongs = 0;
             return;
         }
 

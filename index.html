@@ -926,7 +926,7 @@
 
                 if (data.type === 'JOIN') {
                     console.log('JOIN received:', data.name);
-                    const existingPlayer = players.find(p => p.id === data.id);
+                    const existingPlayer = players.find(p => p.id === c.peer);
                     if (!existingPlayer) {
                         players.push({id: c.peer, name: data.name, status: 'waiting'});
                     }

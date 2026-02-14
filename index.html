@@ -762,6 +762,7 @@
             isReconnecting = false;
             setConnectionStatus(true);
 
+            console.log('📤 Sending REJOIN:', { name: myName, myPeerId });
             conn.send({ type: 'REJOIN', name: myName });
             startHeartbeat();
         });
@@ -879,11 +880,29 @@
         // Remove all existing 'connection' listeners to prevent duplicates
         peer.removeAllListeners('connection');
 
+        console.log('🔧 Setting up host connection handler');
+
         peer.on('connection', (c) => {
-            console.log('New connection:', c.peer);
+            console.log('🔗 New connection from:', c.peer);
+            console.log('   Current connections:', Object.keys(connections));
+
+            // Check if we're overwriting an existing connection
+            if (connections[c.peer]) {
+                console.log('   ⚠️ OVERWRITING existing connection for', c.peer);
+                // Close the old connection
+                try {
+                    connections[c.peer].close();
+                } catch (e) {
+                    console.log('   Error closing old connection:', e);
+                }
+            }
+
             connections[c.peer] = c;
+            console.log('   Updated connections:', Object.keys(connections));
 
             c.on('data', (data) => {
+                console.log('📨 Host received from', c.peer, ':', data.type || data);
+
                 // Handle PING
                 if (data.type === 'PING') {
                     try {
@@ -911,12 +930,24 @@
 
                         console.log(`🔄 Player ID change: ${oldId} → ${c.peer}`);
 
-                        if (connections[oldId]) {
+                        // Clean up old connection if it exists
+                        if (connections[oldId] && oldId !== c.peer) {
+                            console.log(`  Closing old connection: ${oldId}`);
+                            try {
+                                connections[oldId].close();
+                            } catch (e) {
+                                console.log('  Error closing old connection:', e);
+                            }
                             delete connections[oldId];
                         }
 
+                        // Make sure the NEW connection is stored (it already is from peer.on('connection'))
+                        // But just to be explicit:
+                        connections[c.peer] = c;
+                        console.log(`  Updated connections:`, Object.keys(connections));
+
                         // 🔥 CRITICAL: Migrate submitted board to new peer ID
-                        if (hostLobbyState[oldId]) {
+                        if (hostLobbyState[oldId] && oldId !== c.peer) {
                             console.log(`📦 Migrating board from ${oldId} to ${c.peer}`);
                             hostLobbyState[c.peer] = hostLobbyState[oldId];
                             delete hostLobbyState[oldId];
@@ -976,7 +1007,25 @@
             });
 
             c.on('close', () => {
-                console.log(`Client ${c.peer} disconnected`);
+                console.log(`❌ Connection ${c.peer} closed`);
+
+                // Only remove if this is actually the current connection for this peer
+                // (not an old duplicate connection that's closing)
+                if (connections[c.peer] === c) {
+                    console.log(`  Removing connection ${c.peer} from connections object`);
+
+                    // Don't remove players during PREP - they might reconnect
+                    if (currentPhase !== STATE.PREP) {
+                        console.log(`  Also removing player ${c.peer} from players array`);
+                        players = players.filter(p => p.id !== c.peer);
+                        updateHostList();
+                        broadcast({ type: 'PLAYER_UPDATE', players });
+                    }
+
+                    delete connections[c.peer];
+                } else {
+                    console.log(`  This is an old connection, current one is different - ignoring`);
+                }
             });
 
             c.on('error', (err) => {
@@ -1022,6 +1071,30 @@
             console.log('⚠️ Peer disconnected');
             reconnectHostPeer();
             return;
+        }
+
+        // Clean up dead client connections
+        // BUT: Don't remove players during PREP phase - they might be reconnecting!
+        let deadCount = 0;
+        Object.entries(connections).forEach(([id, c]) => {
+            if (!c.open) {
+                console.log(`Connection ${id} is not open`);
+
+                // Only remove if not in PREP phase (or if in LOBBY phase)
+                if (currentPhase !== STATE.PREP) {
+                    console.log(`Removing dead connection: ${id}`);
+                    delete connections[id];
+                    players = players.filter(p => p.id !== id);
+                    deadCount++;
+                } else {
+                    console.log(`Keeping player ${id} during PREP - they might reconnect`);
+                }
+            }
+        });
+
+        if (deadCount > 0) {
+            updateHostList();
+            broadcast({ type: 'PLAYER_UPDATE', players });
         }
 
         console.log('✅ Host OK');
@@ -1892,19 +1965,26 @@
     }
 
     function broadcast(msg) {
-        Object.values(connections).forEach(c => {
+        console.log('📡 Broadcasting:', msg.type, 'to', Object.keys(connections).length, 'connections');
+        Object.entries(connections).forEach(([peerId, c]) => {
+            console.log(`  → Peer ${peerId}: open=${c.open}`);
             if (c.open) {
                 try {
                     c.send(msg);
+                    console.log('    ✅ Sent successfully');
                 } catch (e) {
-                    console.error('Error broadcasting to', c.peer, e);
+                    console.error('    ❌ Error:', e);
                 }
+            } else {
+                console.log('    ⚠️ Skipped (connection closed)');
             }
         });
         if (isHost) handleData(msg);
     }
 
     function handleData(data) {
+        console.log('📩 Received:', data.type || data);
+
         // Handle PONG - ADD THIS AT THE TOP OF handleData()
         if (data.type === 'PONG') {
             console.log('📥 PONG received');

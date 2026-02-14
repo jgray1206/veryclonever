@@ -399,6 +399,52 @@
             position: relative;
         }
 
+        /* Player status cards (shown in dock during PREP) */
+        .player-status-card {
+            background: var(--tile);
+            border: 2px solid #3a4c8a;
+            border-radius: 10px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            min-width: 100px;
+            transition: all 0.3s ease;
+        }
+
+        .player-status-card.ready {
+            background: var(--locked);
+            border-color: var(--ok);
+        }
+
+        .player-status-card.waiting {
+            opacity: 0.6;
+        }
+
+        .player-status-card .player-icon {
+            font-size: 2rem;
+        }
+
+        .player-status-card .player-name {
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-align: center;
+            word-break: break-word;
+            max-width: 90px;
+        }
+
+        .player-status-card .status-indicator {
+            font-size: 0.75rem;
+            color: var(--muted);
+            font-weight: 500;
+        }
+
+        .player-status-card.ready .status-indicator {
+            color: var(--ok);
+        }
+
         /* Modals & Screens */
         .modal {
             position: fixed;
@@ -921,6 +967,11 @@
 
                     broadcast({type: 'PLAYER_UPDATE', players});
 
+                    // Refresh player status cards if in PREP
+                    if (currentPhase === STATE.PREP && !isLocalMode) {
+                        renderPlayerStatusCards();
+                    }
+
                     // Check if all boards submitted after migration
                     if (currentPhase === STATE.PREP && Object.keys(hostLobbyState).length === players.length) {
                         console.log('🎯 All boards already submitted after REJOIN! Proceeding...');
@@ -996,7 +1047,10 @@
 
         if (peer.disconnected) {
             reconnectHostPeer();
+
         }
+
+        // Connection is healthy - cleanup handled by c.on('close') handlers
     }
 
     function testClientConnection() {
@@ -1348,7 +1402,12 @@
             slotEl.appendChild(createTileEl(tiles[i], rot, false, true));
         });
 
-        els.dock.innerHTML = '';
+        // Show player status cards in dock during PREP
+        if (!isLocalMode) {
+            renderPlayerStatusCards();
+        } else {
+            els.dock.innerHTML = '';
+        }
 
         ['top', 'right', 'bottom', 'left'].forEach(dir => {
             const input = document.getElementById(`clue-${dir}`);
@@ -1513,6 +1572,11 @@
             console.error(`⚠️ Player ${pid} not found in players array!`);
         }
         updateHostList();
+
+        // Update player status cards in dock
+        if (currentPhase === STATE.PREP && !isLocalMode) {
+            renderPlayerStatusCards();
+        }
 
         console.log('📝 After submission:', {
             lobbyState: Object.keys(hostLobbyState).map(id => ({
@@ -1942,6 +2006,9 @@
 
         if (data.type === 'PLAYER_UPDATE') {
             players = data.players;
+            if (currentPhase === STATE.PREP && !isLocalMode) {
+                renderPlayerStatusCards();
+            }
         } else if (data.type === 'START_PREP') {
             if (data.players) players = data.players;
             startPrepPhase();
@@ -2316,6 +2383,24 @@
     /**
      * UI HELPERS
      */
+    function renderPlayerStatusCards() {
+        if (currentPhase !== STATE.PREP) return;
+
+        els.dock.innerHTML = '';
+
+        players.forEach(player => {
+            const card = document.createElement('div');
+            const isMe = player.id === myPeerId;
+            card.className = `player-status-card ${player.status === 'done' ? 'ready' : 'waiting'}`;
+            card.innerHTML = `
+                <div class="player-icon">👤</div>
+                <div class="player-name">${player.name}${isMe ? ' (You)' : ''}</div>
+                <div class="status-indicator">${player.status === 'done' ? '✓ Ready' : 'Writing...'}</div>
+            `;
+            els.dock.appendChild(card);
+        });
+    }
+
     function updateHostList() {
         els.hostList.innerHTML = players.map(p => `
         <div class="player-row">

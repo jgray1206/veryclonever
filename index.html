@@ -2043,10 +2043,10 @@
         activeSpectatorId = state.spectatorId;
         attemptCount = state.attempt;
         currentPhase = STATE.SOLVING;
-
+        const slotsToRender = state.slots || {tl: null, tr: null, bl: null, br: null};
         renderBoard({
             clues: state.clues,
-            slots: {tl: null, tr: null, bl: null, br: null},
+            slots: slotsToRender,
             dock: state.dock
         }, true);
 

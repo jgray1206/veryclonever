@@ -925,7 +925,11 @@
                 }
 
                 if (data.type === 'JOIN') {
-                    players.push({id: c.peer, name: data.name, status: 'waiting'});
+                    console.log('JOIN received:', data.name);
+                    const existingPlayer = players.find(p => p.id === data.id);
+                    if (!existingPlayer) {
+                        players.push({id: c.peer, name: data.name, status: 'waiting'});
+                    }
                     updateHostList();
                     broadcast({type: 'PLAYER_UPDATE', players});
                     els.startBtn.disabled = players.length < 2;

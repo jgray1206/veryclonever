@@ -665,7 +665,7 @@
     let hostPeerId = null;
     let originalHostPeerId = null; // 🔥 Store original for reclaiming
     let reconnectAttempts = 0;
-    let maxReconnectAttempts = 15;
+    let maxReconnectAttempts = 5;
     let isReconnecting = false;
     let heartbeatInterval = null;
     let pendingPong = false;
@@ -845,6 +845,20 @@
                     reconnectAttempts = 0;
                     isReconnecting = false;
 
+                    // Log current game state to ensure nothing is lost
+                    console.log('📊 Current game state after reclaim:', {
+                        myPeerId,
+                        players: players.map(p => `${p.name}:${p.id}:${p.status}`),
+                        hostLobbyState: Object.keys(hostLobbyState),
+                        hostLobbyStateDetails: Object.entries(hostLobbyState).map(([id, board]) => ({
+                            playerId: id,
+                            playerName: players.find(p => p.id === id)?.name,
+                            hasBoard: !!board
+                        })),
+                        currentPhase,
+                        totalScore
+                    });
+
                     els.phaseDisplay.textContent = 'Reconnected!';
                     setTimeout(resetPhaseDisplay, 2000);
 
@@ -990,6 +1004,14 @@
                             slots: getCurrentSlots(),
                             playerIndex: players.findIndex(p => p.id === activeSpectatorId)
                         };
+
+                        console.log('📤 Sending current game state to reconnected player:', {
+                            spectatorId: roundState.spectatorId,
+                            attempt: roundState.attempt,
+                            slots: roundState.slots,
+                            dockCount: roundState.dock.length
+                        });
+
                         c.send({type: 'START_ROUND', state: roundState});
                     }
                 }
@@ -1597,8 +1619,10 @@
     function handleBoardSubmission(pid, board) {
         console.log('📝 Board submission:', {
             pid,
+            playerName: players.find(p => p.id === pid)?.name || 'UNKNOWN',
+            isHost: pid === myPeerId,
             currentLobbyState: Object.keys(hostLobbyState),
-            currentPlayers: players.map(p => p.id),
+            currentPlayers: players.map(p => `${p.name}:${p.id}`),
             lobbyCount: Object.keys(hostLobbyState).length,
             playerCount: players.length
         });
@@ -1606,11 +1630,18 @@
         hostLobbyState[pid] = board;
 
         const p = players.find(x => x.id === pid);
-        if (p) p.status = 'done';
+        if (p) {
+            p.status = 'done';
+        } else {
+            console.error(`⚠️ Player ${pid} not found in players array!`);
+        }
         updateHostList();
 
         console.log('📝 After submission:', {
-            lobbyState: Object.keys(hostLobbyState),
+            lobbyState: Object.keys(hostLobbyState).map(id => ({
+                id,
+                playerName: players.find(p => p.id === id)?.name || 'UNKNOWN'
+            })),
             lobbyCount: Object.keys(hostLobbyState).length,
             playerCount: players.length,
             willProceed: Object.keys(hostLobbyState).length === players.length
@@ -1618,12 +1649,27 @@
 
         if (Object.keys(hostLobbyState).length === players.length) {
             console.log('✅ All boards submitted! Starting rounds...');
+            console.log('   Final boards:', Object.entries(hostLobbyState).map(([id, board]) => ({
+                playerId: id,
+                playerName: players.find(p => p.id === id)?.name || 'UNKNOWN',
+                hasClues: !!board.clues,
+                hasSolution: !!board.solution
+            })));
             players = shuffle(players);
+            console.log('   Shuffled player order:', players.map(p => `${p.name}:${p.id}`));
             setTimeout(() => hostNextRound(0), 1000);
         }
     }
 
     function hostNextRound(playerIndex) {
+        console.log(`🎯 hostNextRound called with playerIndex: ${playerIndex}`);
+        console.log('   Current state:', {
+            players: players.map(p => `${p.name}:${p.id}`),
+            hostLobbyState: Object.keys(hostLobbyState),
+            playerCount: players.length,
+            lobbyStateCount: Object.keys(hostLobbyState).length
+        });
+
         if (playerIndex >= players.length) {
             const result = getScoreResult(players.length, totalScore);
             broadcast({type: 'GAME_OVER', score: totalScore, result: result, playerCount: players.length});
@@ -1631,7 +1677,23 @@
         }
 
         const spectator = players[playerIndex];
+        console.log(`   Spectator for round ${playerIndex}:`, spectator.name, spectator.id);
+
         const boardData = hostLobbyState[spectator.id];
+
+        if (!boardData) {
+            console.error(`❌ NO BOARD DATA for ${spectator.name} (${spectator.id})!`);
+            console.error('   Available boards:', Object.entries(hostLobbyState).map(([id, board]) => ({
+                id,
+                playerName: players.find(p => p.id === id)?.name || 'UNKNOWN',
+                hasBoard: !!board
+            })));
+            console.error('   Skipping to next round...');
+            hostNextRound(playerIndex + 1);
+            return;
+        }
+
+        console.log(`   ✅ Found board for ${spectator.name}`);
         activeSolution = boardData;
 
         const realTiles = [
@@ -2040,10 +2102,24 @@
     }
 
     function handleStartRound(state) {
+        console.log('🎮 handleStartRound called with state:', {
+            spectatorId: state.spectatorId,
+            attempt: state.attempt,
+            hasSlots: !!state.slots,
+            slots: state.slots,
+            dockTiles: state.dock?.length
+        });
+
         activeSpectatorId = state.spectatorId;
         attemptCount = state.attempt;
         currentPhase = STATE.SOLVING;
+
+        // Use the actual slots state from the host (for mid-game reconnections)
+        // Or default to empty if starting fresh
         const slotsToRender = state.slots || {tl: null, tr: null, bl: null, br: null};
+
+        console.log('🎨 Rendering board with slots:', slotsToRender);
+
         renderBoard({
             clues: state.clues,
             slots: slotsToRender,

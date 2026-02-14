@@ -997,6 +997,7 @@
                 } else if (data.type === 'SUBMIT_BOARD') {
                     console.log('📥 Received SUBMIT_BOARD from', c.peer);
                     handleBoardSubmission(c.peer, data.board);
+                    broadcast({type: 'PLAYER_UPDATE', players});
                 } else if (data.type === 'TILE_MOVE') {
                     broadcast(data);
                     handleTileMove(data);
@@ -1466,6 +1467,7 @@
 
                 if (isHost) {
                     handleBoardSubmission(myPeerId, myBoard);
+                    broadcast({type: 'PLAYER_UPDATE', players});
                 } else {
                     try {
                         conn.send(payload);

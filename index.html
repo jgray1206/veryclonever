@@ -773,10 +773,24 @@
     function reconnectToHost() {
         if (isReconnecting || isLocalMode || !hostPeerId) return;
 
+        // 🔥 If peer is disconnected, let peer.on('disconnected') handle it
+        // That will trigger peer.reconnect() → peer.on('open') → new connection with REJOIN
+        if (peer && peer.disconnected) {
+            console.log('⏳ Peer is disconnected - letting automatic reconnection handle it');
+            return;
+        }
+
+        // 🔥 If peer is destroyed, we can't reconnect
+        if (!peer || peer.destroyed) {
+            console.log('❌ Peer is destroyed - cannot reconnect');
+            setConnectionStatus(false, 'Connection lost. Please refresh and rejoin.');
+            return;
+        }
+
         isReconnecting = true;
         reconnectAttempts++;
 
-        console.log(`Client reconnect ${reconnectAttempts}/${maxReconnectAttempts}`);
+        console.log(`Client reconnect ${reconnectAttempts}/${maxReconnectAttempts} (manual)`);
         setConnectionStatus(false, `Reconnecting... (${reconnectAttempts}/${maxReconnectAttempts})`);
 
         if (reconnectAttempts > maxReconnectAttempts) {
@@ -796,7 +810,7 @@
 
         conn.on('open', () => {
             clearTimeout(timeout);
-            console.log('✅ Reconnected to host!');
+            console.log('✅ Reconnected to host! (manual)');
             reconnectAttempts = 0;
             isReconnecting = false;
             setConnectionStatus(true);
@@ -1057,6 +1071,12 @@
 
     function testClientConnection() {
         console.log('🔍 Testing client...');
+
+        // 🔥 If peer is disconnected, automatic reconnection will handle it
+        if (peer && peer.disconnected) {
+            console.log('⏳ Peer disconnected - waiting for automatic reconnection');
+            return;
+        }
 
         if (!conn || !conn.open) {
             console.log('❌ Connection dead');
@@ -1911,35 +1931,43 @@
             myPeerId = id;
             console.log('🆔 Peer open event. myPeerId:', oldId, '→', id);
 
-            // 🔥 If we've already connected before, this is PeerJS auto-reconnecting
-            // Don't set up a new connection - let reconnectToHost() handle it
-            if (hasInitialConnection) {
-                return;
-            }
-
             if (oldId && oldId !== id) {
                 console.log('⚠️ Client peer ID changed after reconnection!');
             }
 
+            // 🔥 Determine if this is a reconnection
+            const isReconnection = hasInitialConnection;
+
             conn = peer.connect(hostPeerId, {reliable: true});
 
             let timeout = setTimeout(() => {
-                els.joinBtn.disabled = false;
-                els.joinBtn.textContent = "Join";
-                els.phaseDisplay.textContent = "Connection timeout. Try again.";
-                setTimeout(() => els.phaseDisplay.textContent = "Waiting...", 3000);
+                if (!isReconnection) {
+                    els.joinBtn.disabled = false;
+                    els.joinBtn.textContent = "Join";
+                    els.phaseDisplay.textContent = "Connection timeout. Try again.";
+                    setTimeout(() => els.phaseDisplay.textContent = "Waiting...", 3000);
+                }
             }, 10000);
 
             conn.on('open', () => {
                 clearTimeout(timeout);
-                console.log('Connected to host!');
+                console.log(isReconnection ? '✅ Reconnected to host!' : 'Connected to host!');
                 setConnectionStatus(true);
-                hasInitialConnection = true; // 🔥 Mark that we've connected
 
-                conn.send({type: 'JOIN', name: myName});
+                // 🔥 Send JOIN or REJOIN depending on whether this is initial connection
+                if (isReconnection) {
+                    console.log('📤 Sending REJOIN (peer auto-reconnected):', {name: myName, myPeerId});
+                    conn.send({type: 'REJOIN', name: myName});
+                    reconnectAttempts = 0; // Reset since we succeeded
+                    isReconnecting = false;
+                } else {
+                    console.log('📤 Sending JOIN (initial connection):', {name: myName, myPeerId});
+                    conn.send({type: 'JOIN', name: myName});
+                    hasInitialConnection = true; // 🔥 Mark that we've connected
+                    els.lobbyModal.style.display = 'none';
+                    els.phaseDisplay.textContent = "Waiting for host to start...";
+                }
 
-                els.lobbyModal.style.display = 'none';
-                els.phaseDisplay.textContent = "Waiting for host to start...";
                 startHeartbeat();
             });
 
@@ -1953,10 +1981,12 @@
             conn.on('error', (err) => {
                 clearTimeout(timeout);
                 console.error('Connection error:', err);
-                els.joinBtn.disabled = false;
-                els.joinBtn.textContent = "Join";
-                els.phaseDisplay.textContent = "Connection failed. Try again.";
-                setTimeout(() => els.phaseDisplay.textContent = "Waiting...", 3000);
+                if (!isReconnection) {
+                    els.joinBtn.disabled = false;
+                    els.joinBtn.textContent = "Join";
+                    els.phaseDisplay.textContent = "Connection failed. Try again.";
+                    setTimeout(() => els.phaseDisplay.textContent = "Waiting...", 3000);
+                }
             });
 
             conn.on('data', handleData);

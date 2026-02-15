@@ -717,6 +717,7 @@
     let pongTimeout = null;
     let missedPongs = 0;
     let maxMissedPongs = 2;
+    let hasInitialConnection = false; // 🔥 Track if we've connected before
 
     // Game Data
     let currentPhase = STATE.LOBBY;
@@ -1910,6 +1911,12 @@
             myPeerId = id;
             console.log('🆔 Peer open event. myPeerId:', oldId, '→', id);
 
+            // 🔥 If we've already connected before, this is PeerJS auto-reconnecting
+            // Don't set up a new connection - let reconnectToHost() handle it
+            if (hasInitialConnection) {
+                return;
+            }
+
             if (oldId && oldId !== id) {
                 console.log('⚠️ Client peer ID changed after reconnection!');
             }
@@ -1927,6 +1934,7 @@
                 clearTimeout(timeout);
                 console.log('Connected to host!');
                 setConnectionStatus(true);
+                hasInitialConnection = true; // 🔥 Mark that we've connected
 
                 conn.send({type: 'JOIN', name: myName});
 

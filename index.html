@@ -2174,34 +2174,30 @@
                         slot.style.borderColor = 'var(--ok)';
                         slot.style.borderWidth = '3px';
                         slot.style.borderStyle = 'solid';
-
-                        if (currentTile) {
-                            currentTile.classList.add('locked');
-                        }
                     } else {
                         slot.style.borderColor = 'var(--danger)';
                         slot.style.borderWidth = '3px';
                         slot.style.borderStyle = 'solid';
 
-                        const correctTileInDock = Array.from(els.dock.querySelectorAll('.tile'))
-                            .find(t => t.dataset.id === correctAnswer.tile.id);
-
-                        if (correctTileInDock) {
-                            slot.appendChild(correctTileInDock);
-
-                            const originalWords = JSON.parse(correctTileInDock.dataset.originalWords || '[]');
-                            updateTileVisuals(correctTileInDock, correctAnswer.rot, originalWords);
-                            correctTileInDock.classList.add('locked');
-
-                            if (currentTile && currentTile !== correctTileInDock) {
-                                els.dock.appendChild(currentTile);
-                                currentTile.classList.add('locked');
-                            }
-                        } else {
-                            if (currentTile) {
-                                currentTile.classList.add('locked');
-                            }
+                        // Evict the wrong tile (if there is one and it isn't
+                        // already the correct tile sitting at the wrong rotation).
+                        if (currentTile && currentTile.dataset.id !== correctAnswer.tile.id) {
+                            els.dock.appendChild(currentTile);
                         }
+                    }
+                });
+
+                ['tl', 'tr', 'bl', 'br'].forEach(slotKey => {
+                    if (data.feedback[slotKey]) return; // already correct, leave it
+
+                    const slot = document.querySelector(`.slot.${slotKey}`);
+                    const correctAnswer = data.solution[slotKey];
+
+                    const correctTileEl = document.querySelector(`.tile[data-id="${correctAnswer.tile.id}"]`);
+                    if (correctTileEl) {
+                        slot.appendChild(correctTileEl);
+                        const originalWords = JSON.parse(correctTileEl.dataset.originalWords || '[]');
+                        updateTileVisuals(correctTileEl, correctAnswer.rot, originalWords);
                     }
                 });
             }
@@ -2319,6 +2315,10 @@
                 if (container.classList.contains('tr')) target = 'tr';
                 if (container.classList.contains('bl')) target = 'bl';
                 if (container.classList.contains('br')) target = 'br';
+            }
+
+            if (!isDock && existingTile && existingTile !== draggedTile && existingTile.classList.contains('locked')) {
+                return;
             }
 
             if (existingTile && existingTile !== draggedTile && !existingTile.classList.contains('locked') && !isDock) {

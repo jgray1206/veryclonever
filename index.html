@@ -2124,6 +2124,7 @@
         els.scoreDisplay.textContent = `Score: ${totalScore}`;
 
         if (data.result === 'PERFECT') {
+            els.actionBtn.disabled = true;
             els.instruction.textContent = "Perfect! +6 Points!";
             els.instruction.style.color = 'var(--ok)';
             document.querySelectorAll('.tile').forEach(t => t.classList.add('locked'));
@@ -2161,6 +2162,7 @@
 
             checkAllSlotsFilled();
         } else if (data.result === 'DONE') {
+            els.actionBtn.disabled = true;
             els.instruction.textContent = `Round Done! +${data.score} Points.`;
 
             if (data.solution) {
@@ -2220,6 +2222,8 @@
     }
 
     function sendVerifyRequest() {
+        els.actionBtn.disabled = true;
+
         const slots = {};
         ['tl', 'tr', 'bl', 'br'].forEach(k => {
             const el = document.querySelector(`.slot.${k} .tile`);
